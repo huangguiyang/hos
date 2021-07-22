@@ -1,0 +1,9 @@
+
+
+as boot.s -o boot.o
+ld -Ttext 0 --oformat binary boot.o -o boot.bin
+
+// disassemble
+objdump -D -b binary -mi386 -Maddr16,data16 boot.bin
+
+./build boot.bin
