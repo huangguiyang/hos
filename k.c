@@ -8,7 +8,7 @@ int b;
 void main()
 {
     a = 1;
-    sti();
+    //sti();
 
     printf("Hello, world!\n");
     for (;;); // never return

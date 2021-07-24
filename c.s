@@ -5,11 +5,11 @@
 .section .text
 .globl _start, sti
 _start:
-    movw $0x10, %ax         # 数据段选择子
-    movw %ax, %ds
-    movw %ax, %es
-    movw %ax, %fs
-    movw %ax, %gs
+    mov $0x10, %ax         # 数据段选择子
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %fs
+    mov %ax, %gs
     lss stack_top, %esp
 
     # https://bochs.sourceforge.io/techspec/PORTS.LST
@@ -26,23 +26,24 @@ _start:
     # 数据寄存器：0x03D5
 
     call read_cursor
+    mov %eax, %ecx
 
-    movl $0xb8000, %ebx
+    mov $0xb8000, %ebx
     sal $0x1, %ecx
-    addl %ecx, %ebx
+    add %ecx, %ebx
     movb $0x43, %al
     movb $0x02, %ah
     movw %ax, (%ebx)
 
-    #call main
-    #hlt
-loop:
-    jmp loop
+    call main
+    hlt
 
-    # 读取光标位置到ECX
+    # 读取光标位置到EAX
 read_cursor:
-    xor %ecx, %ecx
+    push %ecx
+    push %edx
     
+    xor %ecx, %ecx          # 主要是为了清空高16位
     movb $0x0e, %al         # 指令必须使用AL
     movw $0x03d4, %dx       # 指令必须使用DX
     outb %al, %dx
@@ -56,6 +57,10 @@ read_cursor:
     movw $0x03d5, %dx
     inb %dx, %al
     movb %al, %cl
+
+    mov %ecx, %eax
+    pop %edx
+    pop %ecx
     ret
 
 sti:
