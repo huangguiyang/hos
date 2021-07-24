@@ -1,6 +1,6 @@
 # 实模式初始化
-# 加载到0x8000 (32k)
 # 切换到保护模式
+# 将 c 移动到地址 0 （会覆盖掉 BIOS 中断）
 # IBM-PC还需要开启A20地址线才能访问1MB以上的内存
 
 .code16
@@ -8,23 +8,48 @@
 .section .text
 .globl _start
 _start:
-    movw %cs, %ax
-    movw %ax, %ds       # 必须要设置DS，16位下类似 [xxx] 寻址默认 DS:[xxx]
-    movw %ax, %es
-    movw %ax, %ss
+    mov %cs, %ax
+    mov %ax, %ds        # 必须要设置DS，16位下类似 [xxx] 寻址默认 DS:[xxx]
+    mov %ax, %es
+    mov %ax, %ss
+    mov $0x5000, %sp    # 20K
 
     # 准备进入保护模式
     cli
+
+    # destination: es:di
+    # source: ds:si
+    # count: cx
+    xor %ax, %ax
+    cld                 # 清除movsw方向
+do_move:
+    mov %ax, %es        # destination
+    add $0x1000, %ax
+    cmp $0x9000, %ax
+    jz end_move
+    mov %ax, %ds        # source
+    sub %di, %di
+    sub %si, %si
+    mov $0x8000, %cx
+    rep
+    movsw
+    jmp do_move
+
+end_move:
+    mov %cs, %ax
+    mov %ax, %ds        # 恢复 (do_move修改了)
+    mov %ax, %es
+
     call enable_a20
 
     # 加载GDTR
     lgdt gdt_desc
     lidt idt_desc
-    movw $0x0001, %ax
+    mov $0x01, %ax
     lmsw %ax            # CR0.PE=1 开启保护模式
 
     # 紧接一个 far jmp
-    ljmp $0x0008, $0xC000  # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
+    ljmp $0x08, $0x0    # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
 
 enable_a20:
     # 开启A20地址线
@@ -68,7 +93,6 @@ wait_8042_2:
     testb $0x01, %al    # 测试输出缓冲状态（0-空，1-满）
     jz wait_8042_2      # 如果空，继续测试
     ret
-    
 
 # IA-32的段描述符8字节，其中4个字节是段基址，20位段限长
 # 段的长度除了段限长，还要乘以粒度（1字节或4K）
@@ -94,8 +118,8 @@ gdt:
 # GDT的描述符，用来加载到GDTR
 gdt_desc:
     .word 0x0018           # 限长：3*8=24字节
-    .word 0x8000+gdt,0     # gdt地址
+    .word 0x6000+gdt,0x9   # gdt地址: 0x9600 + gdt
 
 idt_desc:
-    .word 0x0000
+    .word 0
     .word 0,0

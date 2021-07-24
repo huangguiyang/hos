@@ -5,8 +5,8 @@ C=c
 T=floppy.img
 AOFF=0
 BOFF=0
-COFF=0xC000
-OBJS=$C.o main.o printf.o
+COFF=0
+OBJS=$C.o k.o
 # no-builtin-printf: 不要把printf调用优化成puts
 # no-asynchronous-unwind-tables: 不要 .eh_frame section
 CFLAGS=-Wall -m32 \

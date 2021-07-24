@@ -1,5 +1,4 @@
 # 32位保护模式
-# 加载到 0xC000 (48K)
 
 .code32
 
@@ -66,5 +65,5 @@ sti:
 # 16-bits selector
 # 32-bits offset
 stack_top:
-    .long 0xA0000           # 640K
+    .long 0x9B000           # 620K
     .word 0x10
