@@ -7,10 +7,18 @@ AOFF=0
 BOFF=0
 COFF=0xC000
 OBJS=$C.o main.o printf.o
-## no-builtin-printf: 不要把printf调用优化成puts
-CFLAGS=-Wall -nostdlib -nostdinc -fno-pic -fno-pie \
-		-fno-exceptions -fno-unwind-tables -fno-builtin-printf
-LDFLAGS=-nostdlib
+# no-builtin-printf: 不要把printf调用优化成puts
+# no-asynchronous-unwind-tables: 不要 .eh_frame section
+CFLAGS=-Wall -m32 \
+		-nostdlib \
+		-nostdinc \
+		-fno-pic \
+		-fno-pie \
+		-fno-exceptions \
+		-fno-unwind-tables \
+		-fno-builtin-printf \
+		-fno-asynchronous-unwind-tables
+LDFLAGS=-nostdlib -m elf_i386
 
 $T: $A.bin $B.bin $C.bin build
 	./build $A.bin $B.bin $C.bin > $@
@@ -24,16 +32,15 @@ $B.bin: $B.s
 	ld -Ttext ${BOFF} --oformat binary $B.o -o $@
 
 $C.o: $C.s
-	as $C.s -o $C.o
+	as --32 $C.s -o $C.o
 
 %.o: %.c
 	gcc ${CFLAGS} -c $< -o $@
 
 $C.bin: ${OBJS}
 	ld ${LDFLAGS} -Ttext ${COFF} ${OBJS} -o $@
-#	objcopy --remove-section .comment $@
-#	objcopy --remove-section .eh_frame $@
-#	strip $@
+	cp $@ $C.orig.bin
+	objcopy -O binary -R .comment -R .note $@
 
 build: build.c
 	gcc -Wall build.c -o build

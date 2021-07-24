@@ -4,8 +4,7 @@
 
 #define ASIZE   1024
 #define BSIZE   2048
-#define CSIZE   (64*1024)
-#define TOTAL   (ASIZE+BSIZE+CSIZE)
+#define CSIZE   (128*1024)
 
 // 1440k
 #define FLOPPY_SIZE (1024 * 1440)
@@ -70,11 +69,8 @@ int main(int argc, char *argv[])
     fclose(fp);
     if (i > CSIZE)
         die("%s is too big", argv[3]);
-    for (c = 0; i < CSIZE; i++)
-        if (fwrite(&c, 1, 1, stdout) != 1)
-            die("write failed");
 
-    for (i = TOTAL, c = 0; i < FLOPPY_SIZE; i++)
+    for (i += ASIZE + BSIZE, c = 0; i < FLOPPY_SIZE; i++)
         if (fwrite(&c, 1, 1, stdout) != 1)
             die("write failed");
     

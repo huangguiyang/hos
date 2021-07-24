@@ -59,11 +59,6 @@ load_c:
 load_ok:
     ljmp $0x0800, $0        # jump to setup
 
-head:
-    .byte 0
-track:
-    .byte 0
-
 .org 510, 0
 boot_sig:
     .word 0xAA55
