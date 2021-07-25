@@ -20,16 +20,19 @@ extern int vsnprintf(char *str, int size, const char *fmt, va_list ap);
 extern int puts(char *str);
 extern int putc(int c);
 extern int read_cursor(void);
+extern void set_cursor(int position);
 
 #define LINE_MAX    25
 #define COLUMN_MAX  80
 
-static short *vga_buffer = (short *)0xb8000;
+#define GREEN_COLOR 0x02
+
+// Color VGA
+static char *vga_buffer = (char *)0xb8000;
 
 int cursor_line;
 int cursor_column;
 static char obuf[1024]; // print buffer
-static char hello[] = {'H','e','l','l','o',0};
 
 int main()
 {
@@ -41,13 +44,7 @@ int main()
     cursor_column = pos % COLUMN_MAX;
     // sti();
 
-    // char *c = "0x1008";
-    //printf("Hello, world! %d\n", a);
-    // puts(hello);
-    puts("0x1008");
-    // puts(c);
-    // puts(0x0);
-    // putc('P');
+    puts("Hello, world!\nabc");
 
     for (;;); // never return
     
@@ -99,25 +96,40 @@ int puts(char *str)
 {
     char *p;
 
-    for (p = str; *p; p++);
+    for (p = str; *p; p++)
         putc(*p);
     return (p - str);
+}
+
+static void out_byte(char *buffer, int ch, int color)
+{
+    *(short *)buffer = ((color & 0xff) << 8) | (ch & 0xff);
 }
 
 int putc(int c)
 {
     int offset;
-    short *p;
+    char *p;
+
+    if (c == '\n') {
+        cursor_line++;
+        cursor_column = 0;
+        goto update_position;
+    }
 
     if (cursor_column >= COLUMN_MAX) {
         cursor_line++;
         cursor_column = 0;
     }
 
-    offset = cursor_line * COLUMN_MAX + cursor_column;
+    // 2 bytes per character
+    offset = 2 * (cursor_line * COLUMN_MAX + cursor_column);
     p = vga_buffer + offset;
-    *p = 0x0200 | (c & 0xff);   // 02H 绿色
+    out_byte(p, c, GREEN_COLOR);
     cursor_column++;
 
+update_position:
+    offset = cursor_line * COLUMN_MAX + cursor_column;
+    set_cursor(offset);
     return 1;
 }

@@ -10,7 +10,7 @@
 .set STACK_TOP, 0x9B000         # 620K
 
 .section .text
-.globl _start, sti, gdt, idt, page_dir, page_table, read_cursor, test_tty
+.globl _start, sti, gdt, idt, page_dir, page_table, read_cursor, set_cursor
 _start:
     mov $0x10, %ax         # 数据段选择子
     mov %ax, %ds
@@ -46,7 +46,8 @@ _start:
     call main
     hlt
 
-    # 读取光标位置到EAX
+    # int read_cursor(void);
+    # 读取光标位置
 read_cursor:
     push %ecx
     push %edx
@@ -56,14 +57,14 @@ read_cursor:
     movw $0x03d4, %dx       # 指令必须使用DX
     outb %al, %dx
     movw $0x03d5, %dx
-    inb %dx, %al
+    inb %dx, %al            # 读取高位
     movb %al, %ch
 
     movb $0x0f, %al
     movw $0x03d4, %dx
     outb %al, %dx
     movw $0x03d5, %dx
-    inb %dx, %al
+    inb %dx, %al            # 读取低位
     movb %al, %cl
 
     mov %ecx, %eax
@@ -71,6 +72,41 @@ read_cursor:
     pop %ecx
     ret
 
+    # void set_cursor(int position);
+    # 设置光标位置
+set_cursor:
+    push %ebp
+    mov %esp, %ebp
+    push %eax
+    push %ebx
+    push %ecx
+    push %edx
+
+    mov 0x8(%ebp), %ebx     # position
+
+    movb $0x0e, %al         # 指令必须使用AL
+    movw $0x03d4, %dx       # 指令必须使用DX
+    outb %al, %dx
+    movw $0x03d5, %dx
+    movb %bh, %al
+    outb %al, %dx           # 写入高位
+
+    movb $0x0f, %al
+    movw $0x03d4, %dx
+    outb %al, %dx
+    movw $0x03d5, %dx
+    movb %bl, %al
+    outb %al, %dx            # 写入低位
+
+    pop %edx
+    pop %ecx
+    pop %ebx
+    pop %eax
+    leave
+    ret
+
+    # void sti(void);
+    # 开中断
 sti:
     sti
     ret
