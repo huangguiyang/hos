@@ -12,6 +12,7 @@ OBJS=$C.o k.o
 CFLAGS=-Wall -m32 \
 		-nostdlib \
 		-nostdinc \
+		-fno-builtin \
 		-fno-pic \
 		-fno-pie \
 		-fno-exceptions \

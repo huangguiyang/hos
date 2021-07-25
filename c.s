@@ -1,10 +1,28 @@
 # 32位保护模式
+# 系统内存分布：
+# 0 ~ 512K: kernel
+# 600K: (0x96000): setup        重新加载GDT,IDT后即可废弃
+# 620K: (0x9B000): stack top
+# 620K ~ 640K: saved parameters
 
 .code32
 
+.set STACK_TOP, 0x9B000         # 620K
+
 .section .text
-.globl _start, sti
+.globl _start, sti, gdt, idt, page_dir, page_table, read_cursor, test_tty
 _start:
+    mov $0x10, %ax         # 数据段选择子
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %fs
+    mov %ax, %gs
+    lss stack_top, %esp
+
+    # 重新加载GDT,IDT
+    lgdt gdt_desc
+    lidt idt_desc
+
     mov $0x10, %ax         # 数据段选择子
     mov %ax, %ds
     mov %ax, %es
@@ -24,16 +42,6 @@ _start:
     #           0x0E - 光标位置高8位
     #           0x0F - 光标位置低8位
     # 数据寄存器：0x03D5
-
-    call read_cursor
-    mov %eax, %ecx
-
-    mov $0xb8000, %ebx
-    sal $0x1, %ecx
-    add %ecx, %ebx
-    movb $0x43, %al
-    movb $0x02, %ah
-    movw %ax, (%ebx)
 
     call main
     hlt
@@ -67,8 +75,39 @@ sti:
     sti
     ret
 
-# 16-bits selector
-# 32-bits offset
 stack_top:
-    .long 0x9B000           # 620K
-    .word 0x10
+    .long STACK_TOP             # 32-bits offset
+    .word 0x10                  # 16-bits selector
+
+.align 8
+# 全局描述符表
+gdt:
+    .word 0,0,0,0       # 第一个必须为空
+    
+    # 0-4GB的代码段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9A00        # 代码段，rx权限
+    .word 0x00C0        # 粒度-4K，32位操作数
+
+    # 0-4GB的数据段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9200        # 数据段，rw权限
+    .word 0x00C0        # 粒度-4K，32位操作数
+
+    .fill 3,8,0         # 预留
+
+# GDT的描述符，用来加载到GDTR
+gdt_desc:
+    .word 0x002f        # 限长：6个*8字节/个=48字节 (0x30-1)
+    .long gdt           # gdt地址
+
+
+idt_desc:
+    .word 0
+    .long 0
+
+.align 8
+page_dir:
+page_table:
