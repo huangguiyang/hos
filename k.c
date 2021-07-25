@@ -27,6 +27,8 @@ extern void clear_screen(void);
 extern void page_fault_handler(void);
 extern void divide_error_handler(void);
 
+extern char *page_dir;
+
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
 

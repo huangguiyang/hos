@@ -13,8 +13,9 @@
 .globl _start, sti, gdt, idt, page_dir, page_table, read_cursor, set_cursor
 .globl page_fault_handler, divide_error_handler
 .globl hlt
+.globl page_dir
 _start:
-    mov $0x10, %ax         # 数据段选择子
+    mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
@@ -22,18 +23,55 @@ _start:
     lss stack_top, %esp
 
     # 重新加载GDT,IDT
-    lgdt gdt_desc
     call setup_idt
+    lgdt gdt_desc
 
-    mov $0x10, %ax         # 数据段选择子
+    mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
     lss stack_top, %esp
 
-    call main
+    #push $main              # 压栈
+    push $done
+    call setup_paging       # 开启分页功能
+    
+    # 开启分页后需要一次跳转（改变了CR0寄存器），前面已压栈main函数
+    # main函数设计成不会返回，若返回则停机
+done:
     hlt
+
+    # 开启分页（可选）
+setup_paging:
+    # 初始化页目录
+    movl $page_table1 + 7, page_dir      # A=0,PCD=0,PWT=0,U/S=1,R/W=1,P=1
+    movl $page_table2 + 7, page_dir+4
+    movl $page_table3 + 7, page_dir+8
+    movl $page_table4 + 7, page_dir+12
+
+    # 初始化页表 [0-255] 即 0-1MB 内存页
+    mov $page_dir, %ebx
+    mov (%ebx), %ebx
+    and 0xfffff000, %ebx        # eax = 第一个页表地址
+    mov $256, %ecx
+    xor %eax, %eax
+    add $3, %eax                # U/S=0,R/W=1,P=1
+rp_pte:
+    mov %eax, (%ebx)
+    add $0x1000, %eax           # 加4K
+    add $4, %ebx
+    dec %ecx
+    jne rp_pte
+
+    # 修改CR3和CR0寄存器，开启分页
+    # CR3指向页目录，CR0设置PG位
+    # 由于页目录4K对齐，直接mov到CR3即可
+    mov $page_dir, %eax
+    mov %eax, %cr3              # PCD=0,PWT=0
+    or $0x80000000, %eax        # 最高位是PG (Paging)
+    mov %eax, %cr0              # PG=1
+    ret                         # 由于前面压栈main，这里会跳转到main执行
 
     # 中断描述符的格式参见 Intel Manual Vol 3 - 6.11 IDT DESCRIPTORS
     # IDT 描述符包括三种：
@@ -90,7 +128,6 @@ ignore_idt:
 
     # int read_cursor(void);
     # 读取光标位置
-.align 4
 read_cursor:
     push %ecx
     push %edx
@@ -117,7 +154,6 @@ read_cursor:
 
     # void set_cursor(int position);
     # 设置光标位置
-.align 4
 set_cursor:
     push %ebp
     mov %esp, %ebp
@@ -151,12 +187,10 @@ set_cursor:
 
     # void sti(void);
     # 开中断
-.align 4
 sti:
     sti
     ret
 
-.align 4
 hlt:
     hlt
 
@@ -218,7 +252,6 @@ divide_error_handler:
 	pop %eax
     iret
 
-.align 4
 stack_top:
     .long STACK_TOP             # 32-bits offset
     .word 0x10                  # 16-bits selector
@@ -243,18 +276,29 @@ gdt:
     .fill 3,8,0         # 预留
 
 # GDT的描述符，用来加载到GDTR
+.word 0
 gdt_desc:
-    .word 0x002f        # 限长：6个*8字节/个=48字节 (0x30-1)
+    .word 6*8-1         # 限长：6个*8字节/个=48字节 (0x30-1)
     .long gdt           # gdt地址
 
 .align 8
 idt:
     .fill 256,8,0
 
+.word 0
 idt_desc:
     .word 256*8-1
     .long idt
 
-.align 8
+# 由于页目录和页表项的地址都是20位，因此必须在4K对齐
+.align 4096
 page_dir:
-page_table:
+    .fill 1024,4,0
+page_table1:
+    .fill 1024,4,0
+page_table2:
+    .fill 1024,4,0
+page_table3:
+    .fill 1024,4,0
+page_table4:
+    .fill 1024,4,0
