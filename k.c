@@ -22,6 +22,9 @@ extern int putc(int c);
 extern int read_cursor(void);
 extern void set_cursor(int position);
 
+#define INT_MIN 0x80000000
+#define INT_MAX 0x7FFFFFFF
+
 #define LINE_MAX    25
 #define COLUMN_MAX  80
 
@@ -34,6 +37,12 @@ int cursor_line;
 int cursor_column;
 static char obuf[1024]; // print buffer
 
+struct fmt {
+    char *buf;
+    char *to;       // current
+    char *stop;
+};
+
 int main()
 {
     int pos;
@@ -44,7 +53,7 @@ int main()
     cursor_column = pos % COLUMN_MAX;
     sti();
 
-    puts("Hello, world!\nabc");
+    printf("Hello, world!\nabc %x", 0xb0120);
 
     for (;;); // never return
     
@@ -60,35 +69,103 @@ int printf(const char *fmt, ...)
     return 0;
 }
 
-// %c,%d,%x,%s
+static void fmt_init(struct fmt *f, char *str, int size)
+{
+    f->buf = str;
+    f->to = str;
+    f->stop = str + size;
+}
+
+static void fmt_fini(struct fmt *f)
+{
+    if (f->to < f->stop)
+        *f->to = 0;
+    else
+        *(f->stop - 1) = 0;
+}
+
+static void fmt_putc(struct fmt *f, int c)
+{
+    if (f->to < f->stop)
+        *f->to++ = c;
+}
+
+static void fmt_puts(struct fmt *f, char *s)
+{
+    for (; *s; s++)
+        fmt_putc(f, *s);
+}
+
+// %c,%d,%x,%s,%p
 int vsnprintf(char *str, int size, const char *fmt, va_list ap)
 {
     int c;
-    char *p;
+    unsigned int u;
+    char *s;
+    char b[64];
+    struct fmt f;
 
-    p = str;
+    fmt_init(&f, str, size);
     for (; *fmt; fmt++) {
-        if (*fmt != '%')
-            goto putchar;
-
-        c = fmt[1];
-
-        switch (c) {
+        if (*fmt != '%') {
+            // put char
+            fmt_putc(&f, *fmt);
+            continue;
+        }
+        
+        switch (*++fmt) {
         case 'c':
-        case 'd':
+            c = va_arg(ap, int);
+            fmt_putc(&f, c);
             break;
+        
+        case 'd':
+            c = va_arg(ap, int);
+            if (c == INT_MIN)
+                u = (unsigned int)INT_MAX + 1;
+            else if (c < 0)
+                u = -c;
+            else
+                u = c;
+            s = b + sizeof(b) - 1;
+            *s = 0;
+            do {
+                *--s = u%10 + '0';
+                u /= 10;
+            } while (u);
+            if (c < 0)
+                *--s = '-';
+            fmt_puts(&f, s);
+            break;
+        
+        case 'x':
+        case 'p':
+            u = va_arg(ap, int);
+            s = b + sizeof(b) - 1;
+            *s = 0;
+            do {
+                c = u & 0x0f;
+                if (c >= 10)
+                    *--s = c - 10 + 'A';
+                else
+                    *--s = c + '0';
+                u >>= 4;
+            } while (u);
+            fmt_puts(&f, s);
+            break;
+        
+        case 's':
+            s = va_arg(ap, char *);
+            fmt_puts(&f, s);
+            break;
+        
         default:
+            fmt_putc(&f, *fmt);
             break;
         }
-
-    putchar:
-        if (p - str >= size - 1)
-            break;
-        *p = c;
-        p++;
     }
 
-    *p = 0;
+    fmt_fini(&f);
     return puts(str);
 }
 
