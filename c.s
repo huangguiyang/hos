@@ -21,7 +21,7 @@ _start:
 
     # 重新加载GDT,IDT
     lgdt gdt_desc
-    lidt idt_desc
+    call setup_idt
 
     mov $0x10, %ax         # 数据段选择子
     mov %ax, %ds
@@ -45,6 +45,42 @@ _start:
 
     call main
     hlt
+
+setup_idt:
+    lea ignore_idt, %edx
+    mov $0x00080000, %eax
+    movw %dx, %ax
+    movw $0x8e00, %dx
+    lea idt, %edi
+    mov $256, %ecx
+rp_sidt:
+    mov %eax, (%edi)
+    mov %edx, 4(%edi)
+    add $8, %edi
+    dec %ecx
+    jne rp_sidt
+    lidt idt_desc
+    ret
+
+.align 4
+ignore_idt:
+    push %eax
+    push %ecx
+    push %edx
+    push %ds
+    push %es
+    push %fs
+
+    # do nothing
+
+    pop %fs
+    pop %es
+    pop %ds
+    pop %edx
+    pop %ecx
+    pop %eax
+    iret
+
 
     # int read_cursor(void);
     # 读取光标位置
@@ -111,6 +147,7 @@ sti:
     sti
     ret
 
+.align 4
 stack_top:
     .long STACK_TOP             # 32-bits offset
     .word 0x10                  # 16-bits selector
@@ -139,10 +176,13 @@ gdt_desc:
     .word 0x002f        # 限长：6个*8字节/个=48字节 (0x30-1)
     .long gdt           # gdt地址
 
+.align 8
+idt:
+    .fill 256,8,0
 
 idt_desc:
-    .word 0
-    .long 0
+    .word 256*8-1
+    .long idt
 
 .align 8
 page_dir:

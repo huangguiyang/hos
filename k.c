@@ -42,7 +42,7 @@ int main()
     pos = read_cursor();
     cursor_line = pos / COLUMN_MAX;
     cursor_column = pos % COLUMN_MAX;
-    // sti();
+    sti();
 
     puts("Hello, world!\nabc");
 
