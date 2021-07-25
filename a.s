@@ -188,6 +188,10 @@ read_fail:
 die:
     hlt
 
+    #
+    # 重要：需要对齐2字节，不然会产生很难排查出来的bug!!!
+    #
+.align 2
 head:
     .word 0                 # 当前磁头号
 
