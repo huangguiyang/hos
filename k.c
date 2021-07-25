@@ -21,12 +21,18 @@ extern int puts(char *str);
 extern int putc(int c);
 extern int read_cursor(void);
 extern void set_cursor(int position);
+extern void hlt(void);
+extern void clear_screen(void);
+
+extern void page_fault_handler(void);
+extern void divide_error_handler(void);
 
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
 
 #define LINE_MAX    25
 #define COLUMN_MAX  80
+#define PAGE_MAX    8
 
 #define GREEN_COLOR 0x02
 
@@ -43,6 +49,23 @@ struct fmt {
     char *stop;
 };
 
+// descriptor
+struct desc {
+    int a,b;
+};
+extern struct desc idt[256];
+
+static void set_gate(struct desc *p, int type, int dpl, int address)
+{
+    p->a = 0x00080000 | (address & 0xffff);
+    p->b = (address & 0xffff0000) | (0x8000 + (dpl << 13) + (type << 8));
+}
+
+static void set_trap_gate(int index, void (*handler)(void))
+{
+    set_gate(idt + index, 15, 0, (int)handler);
+}
+
 int main()
 {
     int pos;
@@ -51,13 +74,27 @@ int main()
     pos = read_cursor();
     cursor_line = pos / COLUMN_MAX;
     cursor_column = pos % COLUMN_MAX;
+
+    // Intel Manual Vol 3 - 6.3.1 External Interupts
+    set_trap_gate(0, divide_error_handler);
+    set_trap_gate(14, page_fault_handler);
     sti();
 
-    printf("Hello, world!\nabc %x", 0xb0120);
+    printf("Hello, world!\n");
 
     for (;;); // never return
     
     return 0;
+}
+
+void do_divide_error(int errcode, int address)
+{
+    printf("divide error: %d, 0x%x\n", errcode, address);
+}
+
+void do_page_fault(int errcode, int address)
+{
+    printf("page fault: %d, 0x%x\n", errcode, address);
 }
 
 int printf(const char *fmt, ...)
@@ -183,21 +220,49 @@ static void out_byte(char *buffer, int ch, int color)
     *(short *)buffer = ((color & 0xff) << 8) | (ch & 0xff);
 }
 
+void clear_screen(void)
+{
+    short *dst = (short *)vga_buffer;
+    for (int i = 0; i < LINE_MAX * COLUMN_MAX; i++)
+            *dst++ = 0;
+}
+
+static void scroll_up(void)
+{
+    short *dst = (short *)vga_buffer;
+    short *src = dst + COLUMN_MAX;
+    int i;
+
+    for (i = 0; i < (LINE_MAX - 1) * COLUMN_MAX; i++)
+        *dst++ = *src++;
+
+    dst = (short *)vga_buffer + (COLUMN_MAX * (LINE_MAX - 1));
+    for (i = 0; i < COLUMN_MAX; i++)
+        *dst++ = 0;
+}
+
+static void incline(void)
+{
+    cursor_line++;
+    cursor_column = 0;
+    if (cursor_line >= LINE_MAX) {
+        scroll_up();
+        cursor_line = LINE_MAX - 1;
+    }
+}
+
 int putc(int c)
 {
     int offset;
     char *p;
 
     if (c == '\n') {
-        cursor_line++;
-        cursor_column = 0;
+        incline();
         goto update_position;
     }
 
-    if (cursor_column >= COLUMN_MAX) {
-        cursor_line++;
-        cursor_column = 0;
-    }
+    if (cursor_column >= COLUMN_MAX)
+        incline();
 
     // 2 bytes per character
     offset = 2 * (cursor_line * COLUMN_MAX + cursor_column);
