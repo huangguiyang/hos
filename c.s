@@ -37,6 +37,7 @@ _start:
     #push $main              # 压栈
     #call setup_paging       # 开启分页功能
     call main
+die:
     hlt
 
     # 开启分页（可选）
@@ -271,8 +272,8 @@ idt_desc:
 # 全局描述符表
 gdt:
     .quad 0x0000000000000000    # 第一个必须为空
-    .quad 0x00C09A000000FFFF    # 4GB的代码段
-    .quad 0x00C092000000FFFF    # 4GB的数据段
+    .quad 0x00CF9A000000FFFF    # 4GB的代码段
+    .quad 0x00CF92000000FFFF    # 4GB的数据段
     .quad 0x0000000000000000    # 预留
     .fill 252,8,0               # Others
 

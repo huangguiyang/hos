@@ -108,13 +108,13 @@ gdt:
     .word 0xFFFF        # limit
     .word 0x0000        # 基址
     .word 0x9A00        # 代码段，rx权限
-    .word 0x00C0        # 粒度-4K，32位操作数
+    .word 0x00CF        # 粒度-4K，32位操作数
 
     # 0-4GB的数据段
     .word 0xFFFF        # limit
     .word 0x0000        # 基址
     .word 0x9200        # 数据段，rw权限
-    .word 0x00C0        # 粒度-4K，32位操作数
+    .word 0x00CF        # 粒度-4K，32位操作数
 
 # GDT的描述符，用来加载到GDTR
 # Pseudo-Descriptor Format
