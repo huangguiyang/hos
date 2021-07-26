@@ -78,9 +78,9 @@ load_ok:
     #       02H: 1.2MB, 80 tracks, 5.25"
     #       03H: 720KB, 80 tracks, 3.5"
     #       04H: 1.44M, 80 tracks, 3.5"
-    # CH: 最大cylinder（柱面即磁道）的低8位
-    # CL: 0:5 最大扇区数，6:7 最大cylinder的高2位
-    # DH: 最大磁头数
+    # CH: 最大cylinder的低8位   （即磁道，从0算起）
+    # CL: 0:5 最大扇区数，6:7 最大cylinder的高2位   （从1算起）
+    # DH: 最大磁头数    （从0算起）
     # DL: 磁盘个数
     # ES:DI: 磁盘参数表位置
 load_c:
