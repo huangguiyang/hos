@@ -122,7 +122,7 @@ read_2:
     je read_3               # 刚好在64k边界
     xor %ax, %ax
     sub %bx, %ax
-    sar $0x09, %ax          # 扇区数
+    shr $0x09, %ax          # 扇区数
 
 read_3:
     call read_track

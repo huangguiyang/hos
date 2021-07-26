@@ -2,7 +2,7 @@
 A=a
 B=b
 C=c
-T=Image
+T=floppy.img
 AOFF=0
 BOFF=0
 COFF=0
