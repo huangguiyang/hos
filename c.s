@@ -37,7 +37,6 @@ _start:
     #push $main              # 压栈
     #call setup_paging       # 开启分页功能
     call main
-die:
     hlt
 
     # 开启分页（可选）
