@@ -95,8 +95,7 @@ load_c:
     mov $CSEG, %ax
     mov %ax, %es
     call read
-loop:
-    jmp loop
+
     ljmp $BSEG, $0          # jump to b
 
     # 要用到的磁盘参数已经保存，开始读取
@@ -170,7 +169,6 @@ read_track:
     movb $0x02, %ah         # read sector
     int $0x13
     jc read_fail            # Failed (CF=1)
-    call print_dot
     pop %dx
     pop %cx
     pop %bx
@@ -186,59 +184,6 @@ read_fail:
     pop %bx
     pop %ax
     jmp read_track
-
-print_dot:
-    push %ax
-    push %bx
-    push %cx
-    push %dx
-    push %es
-    push %bp
-
-    # 打印字符串
-    # al: 模式
-    # bh: 页号
-    # bl: 颜色属性 (4bit background | 4bit foreground)
-    # cx: 字符个数
-    # dh: 行
-    # dl: 列
-    # es:bp - 字符串指针
-
-    movb line, %dh
-    movb column, %dl
-    cmp $80, %dl
-    jne doput
-    incb %dh
-    movb $0, %dl
-    movb %dh, line
-
-doput:
-    mov %cs, %ax
-    mov %ax, %es
-    mov $0x02, %bx
-    #mov $0, %dx
-    mov $1, %cx
-    mov $msg, %bp
-    mov $0x1301, %ax
-    int $0x10
-    
-    incb %dl
-    movb %dl, column
-    pop %bp
-    pop %es
-    pop %dx
-    pop %cx
-    pop %bx
-    pop %ax
-    ret
-
-msg:
-    .byte '.'
-
-line:
-    .byte 0
-column:
-    .byte 0
 
 die:
     hlt
