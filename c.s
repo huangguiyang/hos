@@ -10,9 +10,8 @@
 .set STACK_TOP, 0x9B000         # 620K
 
 .section .text
-.globl _start, sti, gdt, idt, page_dir, page_table, read_cursor, set_cursor
+.globl _start, sti, hlt, gdt, idt, read_cursor, set_cursor
 .globl page_fault_handler, divide_error_handler
-.globl hlt
 .globl page_dir
 _start:
     mov $0x10, %eax         # 数据段选择子
@@ -32,14 +31,12 @@ _start:
     mov %ax, %fs
     mov %ax, %gs
     lss stack_top, %esp
-
-    #push $main              # 压栈
-    push $done
-    call setup_paging       # 开启分页功能
     
     # 开启分页后需要一次跳转（改变了CR0寄存器），前面已压栈main函数
     # main函数设计成不会返回，若返回则停机
-done:
+    #push $main              # 压栈
+    #call setup_paging       # 开启分页功能
+    call main
     hlt
 
     # 开启分页（可选）
@@ -72,6 +69,7 @@ rp_pte:
     or $0x80000000, %eax        # 最高位是PG (Paging)
     mov %eax, %cr0              # PG=1
     ret                         # 由于前面压栈main，这里会跳转到main执行
+    hlt
 
     # 中断描述符的格式参见 Intel Manual Vol 3 - 6.11 IDT DESCRIPTORS
     # IDT 描述符包括三种：
@@ -276,7 +274,6 @@ gdt:
     .fill 3,8,0         # 预留
 
 # GDT的描述符，用来加载到GDTR
-.word 0
 gdt_desc:
     .word 6*8-1         # 限长：6个*8字节/个=48字节 (0x30-1)
     .long gdt           # gdt地址
@@ -285,7 +282,6 @@ gdt_desc:
 idt:
     .fill 256,8,0
 
-.word 0
 idt_desc:
     .word 256*8-1
     .long idt
