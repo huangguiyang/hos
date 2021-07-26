@@ -3,6 +3,7 @@
 # 将 c 移动到地址 0 （会覆盖掉 BIOS 中断）
 # 切换到保护模式后不会再返回实模式，所以不会再用到BIOS中断调用
 # IBM-PC还需要开启A20地址线才能访问1MB以上的内存
+# Loaded at 0x9600:0x0000
 
 .code16
 
@@ -18,20 +19,18 @@ _start:
     # 准备进入保护模式
     cli
 
-    # destination: es:di
-    # source: ds:si
-    # count: cx
+    # 64K开始整体往前移动
     xor %ax, %ax
     cld                 # 清除movsw方向
 do_move:
-    mov %ax, %es        # destination
+    mov %ax, %es        # destination es:di
     add $0x1000, %ax
     cmp $0x9000, %ax
     jz end_move
-    mov %ax, %ds        # source
+    mov %ax, %ds        # source ds:si
     sub %di, %di
     sub %si, %si
-    mov $0x8000, %cx
+    mov $0x8000, %cx    # 64K
     rep
     movsw
     jmp do_move
@@ -41,16 +40,17 @@ end_move:
     mov %ax, %ds        # 恢复 (do_move修改了)
     mov %ax, %es
 
-    call enable_a20
-
-    # 加载GDTR
-    lgdt gdt_desc
+    # 加载 IDTR, GDTR
     lidt idt_desc
-    mov $0x01, %ax
+    lgdt gdt_desc
+
+    call enable_a20     # 开启A20地址线
+
+    mov $0x0001, %ax
     lmsw %ax            # CR0.PE=1 开启保护模式
 
     # 紧接一个 far jmp
-    ljmp $0x08, $0x0    # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
+    ljmp $0x08, $0      # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
 
 enable_a20:
     # 开启A20地址线
@@ -117,6 +117,8 @@ gdt:
     .word 0x00C0        # 粒度-4K，32位操作数
 
 # GDT的描述符，用来加载到GDTR
+# Pseudo-Descriptor Format
+# 0~15: Limit, 16~47: 32-bit base address
 gdt_desc:
     .word 0x0017           # 限长：3*8=24字节 (0x18-1)
     .word 0x6000+gdt,0x9   # gdt地址: 0x9600 + gdt
