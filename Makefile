@@ -25,12 +25,12 @@ $T: $A.bin $B.bin $C.bin build
 	./build $A.bin $B.bin $C.bin > $@
 
 $A.bin: $A.s
-	as $A.s -o $A.o
-	ld -Ttext ${AOFF} --oformat binary $A.o -o $@
+	as --32 $A.s -o $A.o
+	ld -m elf_i386 -Ttext ${AOFF} --oformat binary $A.o -o $@
 
 $B.bin: $B.s
-	as $B.s -o $B.o
-	ld -Ttext ${BOFF} --oformat binary $B.o -o $@
+	as --32 $B.s -o $B.o
+	ld -m elf_i386 -Ttext ${BOFF} --oformat binary $B.o -o $@
 
 $C.o: $C.s
 	as --32 $C.s -o $C.o
