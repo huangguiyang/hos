@@ -4,7 +4,7 @@
 
 #define ASIZE   1024
 #define BSIZE   2048
-#define CSIZE   (256*1024)      // 不包含BSS
+#define CSIZE   (128*1024)      // 不包含BSS
 
 static void die(const char *fmt, ...)
 {
