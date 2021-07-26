@@ -250,41 +250,34 @@ divide_error_handler:
 	pop %eax
     iret
 
+.align 4
 stack_top:
     .long STACK_TOP             # 32-bits offset
     .word 0x10                  # 16-bits selector
 
-.align 8
-# 全局描述符表
-gdt:
-    .word 0,0,0,0       # 第一个必须为空
-    
-    # 0-4GB的代码段
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9A00        # 代码段，rx权限
-    .word 0x00C0        # 粒度-4K，32位操作数
-
-    # 0-4GB的数据段
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9200        # 数据段，rw权限
-    .word 0x00C0        # 粒度-4K，32位操作数
-
-    .fill 3,8,0         # 预留
-
+.align 2
 # GDT的描述符，用来加载到GDTR
+.word 0
 gdt_desc:
-    .word 6*8-1         # 限长：6个*8字节/个=48字节 (0x30-1)
-    .long gdt           # gdt地址
+    .word 256*8-1               # 限长：6个*8字节/个=48字节 (0x30-1)
+    .long gdt                   # gdt地址
 
-.align 8
-idt:
-    .fill 256,8,0
-
+.word 0
 idt_desc:
     .word 256*8-1
     .long idt
+
+.align 8
+# 全局描述符表
+gdt:
+    .quad 0x0000000000000000    # 第一个必须为空
+    .quad 0x00C09A000000FFFF    # 4GB的代码段
+    .quad 0x00C092000000FFFF    # 4GB的数据段
+    .quad 0x0000000000000000    # 预留
+    .fill 252,8,0               # Others
+
+idt:
+    .fill 256,8,0
 
 # 由于页目录和页表项的地址都是20位，因此必须在4K对齐
 .align 4096
