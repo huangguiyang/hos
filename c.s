@@ -92,7 +92,6 @@ rp_sidt:
     lidt idt_desc
     ret
 
-.align 4
 ignore_idt:
     push %eax
     push %ecx
@@ -193,7 +192,6 @@ hlt:
     hlt
 
 ## 中断和异常处理程序
-.align 4
 page_fault_handler:
     xchg %eax, (%esp)           # (%esp) 是CPU放置的错误码
     push %eax
@@ -222,7 +220,6 @@ page_fault_handler:
     iret
 
 # 无错误号
-.align 4
 divide_error_handler:
     push %eax
     push %ebx
@@ -250,19 +247,15 @@ divide_error_handler:
 	pop %eax
     iret
 
-.align 4
 stack_top:
     .long STACK_TOP             # 32-bits offset
     .word 0x10                  # 16-bits selector
 
-.align 2
 # GDT的描述符，用来加载到GDTR
-.word 0
 gdt_desc:
     .word 256*8-1               # 限长：6个*8字节/个=48字节 (0x30-1)
     .long gdt                   # gdt地址
 
-.word 0
 idt_desc:
     .word 256*8-1
     .long idt
