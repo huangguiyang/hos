@@ -82,7 +82,7 @@ int main()
     set_trap_gate(14, page_fault_handler);
     sti();
 
-    printf("Hello, world!\n");
+    printf("Hello, world!\npage_dir:%p\n", &page_dir);
 
     for (;;); // never return
     
@@ -190,6 +190,10 @@ int vsnprintf(char *str, int size, const char *fmt, va_list ap)
                     *--s = c + '0';
                 u >>= 4;
             } while (u);
+            if (*fmt == 'p') {
+                *--s = 'x';
+                *--s = '0';
+            }
             fmt_puts(&f, s);
             break;
         
