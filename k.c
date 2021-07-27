@@ -28,8 +28,6 @@ extern void page_fault_handler(void);
 extern void divide_error_handler(void);
 extern void invalidate_tlb(void);
 
-extern int page_dir[4];
-
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
 
@@ -39,16 +37,18 @@ extern int page_dir[4];
 
 #define GREEN_COLOR 0x02
 
+#define set_trap_gate(index, handler) \
+    set_gate(idt + (index), 15, 0, (int)(handler))
+
 // Color VGA
 static char *vga_buffer = (char *)0xb8000;
-
-int cursor_line;
-int cursor_column;
-static char obuf[1024]; // print buffer
+static int cursor_line;
+static int cursor_column;
+static char print_buffer[1024];
 
 struct fmt {
     char *buf;
-    char *to;       // current
+    char *to;
     char *stop;
 };
 
@@ -57,16 +57,12 @@ struct desc {
     int a,b;
 };
 extern struct desc idt[256];
+extern int page_dir[4];
 
 static void set_gate(struct desc *p, int type, int dpl, int address)
 {
     p->a = 0x00080000 | (address & 0xffff);
     p->b = (address & 0xffff0000) | (0x8000 + (dpl << 13) + (type << 8));
-}
-
-static void set_trap_gate(int index, void (*handler)(void))
-{
-    set_gate(idt + index, 15, 0, (int)handler);
 }
 
 int main()
@@ -99,7 +95,7 @@ int printf(const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    vsnprintf(obuf, sizeof(obuf), fmt, ap);
+    vsnprintf(print_buffer, sizeof(print_buffer), fmt, ap);
     va_end(ap);
     return 0;
 }
@@ -217,7 +213,7 @@ int puts(char *str)
     return (p - str);
 }
 
-static void out_byte(char *buffer, int ch, int color)
+static void outb(char *buffer, int ch, int color)
 {
     *(short *)buffer = ((color & 0xff) << 8) | (ch & 0xff);
 }
@@ -269,7 +265,7 @@ int putc(int c)
     // 2 bytes per character
     offset = 2 * (cursor_line * COLUMN_MAX + cursor_column);
     p = vga_buffer + offset;
-    out_byte(p, c, GREEN_COLOR);
+    outb(p, c, GREEN_COLOR);
     cursor_column++;
 
 update_position:
