@@ -34,9 +34,18 @@ _start:
     
     # 开启分页后需要一次跳转（改变了CR0寄存器），前面已压栈main函数
     # main函数设计成不会返回，若返回则停机
-    #push $main              # 压栈
-    #call setup_paging       # 开启分页功能
-    call main
+    push $hlt
+    push $main              # 压栈
+    jmp setup_paging        # 开启分页功能（注意这里使用jmp，不是call）
+    hlt
+
+    # void sti(void);
+    # 开中断
+sti:
+    sti
+    ret
+
+hlt:
     hlt
 
     # 开启分页（可选）
@@ -48,9 +57,8 @@ setup_paging:
     movl $page_table4 + 7, page_dir+12
 
     # 初始化页表 [0-255] 即 0-1MB 内存页
-    mov $page_dir, %ebx
-    mov (%ebx), %ebx
-    and 0xfffff000, %ebx        # eax = 第一个页表地址
+    movl page_dir, %ebx
+    and $0xfffff000, %ebx        # ebx = 第一个页表地址
     mov $256, %ecx
     xor %eax, %eax
     add $3, %eax                # U/S=0,R/W=1,P=1
@@ -66,10 +74,10 @@ rp_pte:
     # 由于页目录4K对齐，直接mov到CR3即可
     mov $page_dir, %eax
     mov %eax, %cr3              # PCD=0,PWT=0
+    mov %cr0, %eax
     or $0x80000000, %eax        # 最高位是PG (Paging)
     mov %eax, %cr0              # PG=1
     ret                         # 由于前面压栈main，这里会跳转到main执行
-    hlt
 
     # 中断描述符的格式参见 Intel Manual Vol 3 - 6.11 IDT DESCRIPTORS
     # IDT 描述符包括三种：
@@ -182,15 +190,6 @@ set_cursor:
     leave
     ret
 
-    # void sti(void);
-    # 开中断
-sti:
-    sti
-    ret
-
-hlt:
-    hlt
-
 ## 中断和异常处理程序
 page_fault_handler:
     xchg %eax, (%esp)           # (%esp) 是CPU放置的错误码
@@ -251,6 +250,7 @@ stack_top:
     .long STACK_TOP             # 32-bits offset
     .word 0x10                  # 16-bits selector
 
+.section .data
 # GDT的描述符，用来加载到GDTR
 gdt_desc:
     .word 256*8-1               # 限长：6个*8字节/个=48字节 (0x30-1)
