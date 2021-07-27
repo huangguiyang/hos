@@ -84,7 +84,7 @@ int main()
     int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
     *p = 0x12345678;
     // pos = *p;
-    printf("p=%d\n", *p);
+    printf("p=%x\n", *p);
 
     for (;;); // never return
     

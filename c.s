@@ -183,10 +183,10 @@ invalidate_tlb:
 page_fault_handler:
     xchg %eax, (%esp)           # (%esp) 是CPU放置的错误码
     push %ecx
-	push %edx
-	push %ds
-	push %es
-	push %fs
+    push %edx
+    push %ds
+    push %es
+    push %fs
     
     mov $0x10, %edx             # 数据段选择子
     movw %dx, %ds
@@ -199,11 +199,11 @@ page_fault_handler:
     add $8, %esp
     
     pop %fs
-	pop %es
-	pop %ds
-	pop %edx
-	pop %ecx
-	pop %eax
+    pop %es
+    pop %ds
+    pop %edx
+    pop %ecx
+    pop %eax
     iret
 
 # 无错误号
@@ -211,10 +211,10 @@ divide_error_handler:
     push %eax
     push %ebx
     push %ecx
-	push %edx
-	push %ds
-	push %es
-	push %fs
+    push %edx
+    push %ds
+    push %es
+    push %fs
     
     mov $0x10, %edx             # 数据段选择子
     movw %dx, %ds
@@ -226,12 +226,12 @@ divide_error_handler:
     add $8, %esp
     
     pop %fs
-	pop %es
-	pop %ds
-	pop %edx
-	pop %ecx
+    pop %es
+    pop %ds
+    pop %edx
+    pop %ecx
     pop %ebx
-	pop %eax
+    pop %eax
     iret
 
 stack_top:
