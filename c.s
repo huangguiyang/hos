@@ -32,11 +32,12 @@ _start:
     mov %ax, %gs
     lss stack_top, %esp
     
-    # 开启分页后需要一次跳转（改变了CR0寄存器），前面已压栈main函数
+    # 开启分页后需要一次跳转（改变了CR0寄存器），压栈main函数
     # main函数设计成不会返回，若返回则停机
     push $hlt
     push $main              # 压栈
     jmp setup_paging        # 开启分页功能（注意这里使用jmp，不是call）
+hlt:
     hlt
 
     # void sti(void);
@@ -44,9 +45,6 @@ _start:
 sti:
     sti
     ret
-
-hlt:
-    hlt
 
     # 开启分页（可选）
 setup_paging:
@@ -101,21 +99,7 @@ rp_sidt:
     ret
 
 ignore_idt:
-    push %eax
-    push %ecx
-    push %edx
-    push %ds
-    push %es
-    push %fs
-
     # do nothing
-
-    pop %fs
-    pop %es
-    pop %ds
-    pop %edx
-    pop %ecx
-    pop %eax
     iret
 
     # https://bochs.sourceforge.io/techspec/PORTS.LST

@@ -84,6 +84,10 @@ int main()
 
     printf("Hello, world!\npage_dir:%p\n", &page_dir);
 
+    int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
+    *p = 0x12345678;
+    printf("p=%d\n", *p);
+
     for (;;); // never return
     
     return 0;
