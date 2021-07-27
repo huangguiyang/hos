@@ -26,8 +26,9 @@ extern void clear_screen(void);
 
 extern void page_fault_handler(void);
 extern void divide_error_handler(void);
+extern void invalidate_tlb(void);
 
-extern char *page_dir;
+extern int page_dir[4];
 
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
@@ -86,21 +87,12 @@ int main()
 
     int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
     *p = 0x12345678;
+    // pos = *p;
     printf("p=%d\n", *p);
 
     for (;;); // never return
     
     return 0;
-}
-
-void do_divide_error(int errcode, int address)
-{
-    printf("divide error: %d, 0x%x\n", errcode, address);
-}
-
-void do_page_fault(int errcode, int address)
-{
-    printf("page fault: %d, 0x%x\n", errcode, address);
 }
 
 int printf(const char *fmt, ...)
@@ -284,4 +276,23 @@ update_position:
     offset = cursor_line * COLUMN_MAX + cursor_column;
     set_cursor(offset);
     return 1;
+}
+
+void do_divide_error(int errcode, int address)
+{
+    printf("divide error: %d, 0x%x\n", errcode, address);
+}
+
+void do_page_fault(int errcode, int address)
+{
+    int i, j;
+    int *p;
+
+    printf("page fault: %d, 0x%x\n", errcode, address);
+
+    i = (address >> 22) & 0x3ff;    // page dir index
+    j = (address >> 12) & 0x3ff;    // page table index
+
+    p = (int *) (page_dir[i] & 0xFFFFF000); // 高20位是页表地址
+    p[j] = (j << 12) | 3;
 }
