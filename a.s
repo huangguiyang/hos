@@ -131,7 +131,7 @@ read_3:
     cmp nsector, %ax        # 当前磁道是否还有未读取的扇区
     jne read_4              # 还有
     mov $0x01, %ax
-    sub $head, %ax
+    sub head, %ax           # !!!!!! 之前误写成 $head, 导致排查很久 !!!!!!
     jne read_5              # 如果刚是磁头0，跳转到读磁头1
     incw track              # 下一个磁道
 

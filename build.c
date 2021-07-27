@@ -6,6 +6,9 @@
 #define BSIZE   2048
 #define CSIZE   (128*1024)      // 不包含BSS
 
+// 1440k
+#define FLOPPY_SIZE (1024 * 1440)
+
 static void die(const char *fmt, ...)
 {
     va_list ap;
@@ -66,6 +69,10 @@ int main(int argc, char *argv[])
     fclose(fp);
     if (i > CSIZE)
         die("%s is too big", argv[3]);
+
+    for (i += ASIZE + BSIZE, c = 0; i < FLOPPY_SIZE; i++)
+        if (fwrite(&c, 1, 1, stdout) != 1)
+            die("write failed");
     
     fprintf(stderr, "Successfully written.\n");
 
