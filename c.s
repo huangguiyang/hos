@@ -12,7 +12,7 @@
 .section .text
 .globl _start, sti, hlt, gdt, idt, read_cursor, set_cursor
 .globl page_fault_handler, divide_error_handler
-.globl page_dir
+.globl page_dir, invalidate_tlb
 _start:
     mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
@@ -174,10 +174,14 @@ set_cursor:
     leave
     ret
 
+invalidate_tlb:
+    mov $page_dir, %eax
+    mov %eax, %cr3
+    ret
+
 ## 中断和异常处理程序
 page_fault_handler:
     xchg %eax, (%esp)           # (%esp) 是CPU放置的错误码
-    push %eax
     push %ecx
 	push %edx
 	push %ds
