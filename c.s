@@ -11,7 +11,7 @@
 
 .section .text
 .globl _start, sti, hlt, gdt, idt, read_cursor, set_cursor
-.globl page_fault_handler, divide_error_handler
+.globl page_fault_handler, divide_error_handler, nmi_interrupt_handler
 .globl page_dir, invalidate_tlb, test_int
 _start:
     mov $0x10, %eax         # 数据段选择子
@@ -179,8 +179,9 @@ invalidate_tlb:
     mov %eax, %cr3
     ret
 
+    # 测试软件中断
 test_int:
-    int $0
+    int $2
     ret
 
 ## 中断和异常处理程序
@@ -227,6 +228,33 @@ divide_error_handler:
     push $0                     # address
     push $0                     # error code
     call do_divide_error
+    add $8, %esp
+    
+    pop %fs
+    pop %es
+    pop %ds
+    pop %edx
+    pop %ecx
+    pop %ebx
+    pop %eax
+    iret
+
+nmi_interrupt_handler:
+    push %eax
+    push %ebx
+    push %ecx
+    push %edx
+    push %ds
+    push %es
+    push %fs
+    
+    mov $0x10, %edx             # 数据段选择子
+    movw %dx, %ds
+    movw %dx, %es
+    movw %dx, %fs
+    push $0                     # address
+    push $0                     # error code
+    call do_nmi_interrupt
     add $8, %esp
     
     pop %fs

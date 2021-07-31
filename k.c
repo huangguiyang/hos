@@ -26,6 +26,7 @@ extern void clear_screen(void);
 
 extern void page_fault_handler(void);
 extern void divide_error_handler(void);
+extern void nmi_interrupt_handler(void);
 extern void invalidate_tlb(void);
 extern void test_int(void);
 
@@ -40,6 +41,9 @@ extern void test_int(void);
 
 #define set_trap_gate(index, handler) \
     set_gate(idt + (index), 15, 0, (int)(handler))
+
+#define set_intr_gate(index, handler) \
+    set_gate(idt + (index), 14, 0, (int)(handler))
 
 // Color VGA
 static char *vga_buffer = (char *)0xb8000;
@@ -77,8 +81,9 @@ int main()
 
     // Intel Manual Vol 3 - 6.3.1 External Interupts
     set_trap_gate(0, divide_error_handler);
+    set_intr_gate(2, nmi_interrupt_handler);
     set_trap_gate(14, page_fault_handler);
-    sti();
+    // sti();
 
     printf("Hello, world!\npage_dir:%p\n", &page_dir);
 
@@ -87,7 +92,7 @@ int main()
     // pos = *p;
     // pos /= 0;
     test_int();
-    printf("program resume...\n");
+    // printf("program resume...\n");
 
     for (;;); // never return
     
@@ -294,4 +299,9 @@ void do_page_fault(int errcode, int address)
 
     p = (int *) (page_dir[i] & 0xFFFFF000); // 高20位是页表地址
     p[j] = (j << 12) | 3;
+}
+
+void do_nmi_interrupt(int errcode, int address)
+{
+    printf("NMI occurring...\n");
 }
