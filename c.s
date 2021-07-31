@@ -13,6 +13,7 @@
 .globl _start, sti, hlt, gdt, idt, read_cursor, set_cursor
 .globl page_fault_handler, divide_error_handler, nmi_interrupt_handler
 .globl page_dir, invalidate_tlb, test_int
+.globl timer_interrupt_handler
 _start:
     mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
@@ -31,6 +32,8 @@ _start:
     mov %ax, %fs
     mov %ax, %gs
     lss stack_top, %esp
+
+    call setup_8259a
     
     # 开启分页后需要一次跳转（改变了CR0寄存器），压栈main函数
     # main函数设计成不会返回，若返回则停机
@@ -183,6 +186,82 @@ invalidate_tlb:
 test_int:
     int $2
     ret
+
+    # 初始化8259A控制器
+setup_8259a:
+    push %eax
+    push %ebx
+    push %ecx
+    push %edx
+
+    # 主芯片：port 0x20-0x21, 从芯片 port 0xA0-0XA1
+    # CW1 （级联、边缘触发，CW4）
+    movb $0x11, %al
+    outb %al, $0x20
+    .word 0x00eb, 0x00eb
+    outb %al, $0xA0
+    .word 0x00eb, 0x00eb
+
+    # CW2
+    movb $0x20, %al         # 主芯片：中断号从0x20开始
+    outb %al, $0x21
+    .word 0x00eb, 0x00eb
+    movb $0x28, %al         # 从芯片：中断号从0x28开始
+    outb %al, $0xA1
+    .word 0x00eb, 0x00eb
+
+    # CW3
+    movb $0x04, %al
+    outb %al, $0x21
+    .word 0x00eb, 0x00eb
+    movb $0x02, %al
+    outb %al, $0xA1
+    .word 0x00eb, 0x00eb
+    
+
+    # CW4
+    movb $0x03, %al
+    outb %al, $0x21
+    .word 0x00eb, 0x00eb
+
+    # enable timer
+    movb $0xFE, %al
+    outb %al, $0x21
+    .word 0x00eb, 0x00eb
+    movb $0xFF, %al
+    outb %al, $0xA1
+    .word 0x00eb, 0x00eb
+
+    pop %edx
+    pop %ecx
+    pop %ebx
+    pop %eax
+    ret
+
+## 8259A 时钟中断
+timer_interrupt_handler:
+    push %eax
+    push %ebx
+    push %ecx
+    push %edx
+    push %ds
+    push %es
+    push %fs
+    
+    mov $0x10, %edx             # 数据段选择子
+    movw %dx, %ds
+    movw %dx, %es
+    movw %dx, %fs
+    call do_timer
+    
+    pop %fs
+    pop %es
+    pop %ds
+    pop %edx
+    pop %ecx
+    pop %ebx
+    pop %eax
+    iret
 
 ## 中断和异常处理程序
 page_fault_handler:

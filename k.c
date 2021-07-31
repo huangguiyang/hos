@@ -27,6 +27,7 @@ extern void clear_screen(void);
 extern void page_fault_handler(void);
 extern void divide_error_handler(void);
 extern void nmi_interrupt_handler(void);
+extern void timer_interrupt_handler(void);
 extern void invalidate_tlb(void);
 extern void test_int(void);
 
@@ -83,15 +84,16 @@ int main()
     set_trap_gate(0, divide_error_handler);
     set_intr_gate(2, nmi_interrupt_handler);
     set_trap_gate(14, page_fault_handler);
-    // sti();
+    set_intr_gate(32, timer_interrupt_handler);
+    sti();
 
     printf("Hello, world!\npage_dir:%p\n", &page_dir);
 
-    // int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
+    // int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 8);
     // *p = 0x12345678;
     // pos = *p;
     // pos /= 0;
-    test_int();
+    // test_int();
     // printf("program resume...\n");
 
     for (;;); // never return
@@ -304,4 +306,9 @@ void do_page_fault(int errcode, int address)
 void do_nmi_interrupt(int errcode, int address)
 {
     printf("NMI occurring...\n");
+}
+
+void do_timer(void)
+{
+    printf("timer...\n");
 }
