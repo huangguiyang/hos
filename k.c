@@ -27,6 +27,7 @@ extern void clear_screen(void);
 extern void page_fault_handler(void);
 extern void divide_error_handler(void);
 extern void invalidate_tlb(void);
+extern void test_int(void);
 
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
@@ -81,10 +82,12 @@ int main()
 
     printf("Hello, world!\npage_dir:%p\n", &page_dir);
 
-    int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
-    *p = 0x12345678;
+    // int *p = (int *)(1 *1024 * 1024 + 1024 * 4 - 2);
+    // *p = 0x12345678;
     // pos = *p;
-    printf("p=%x\n", *p);
+    // pos /= 0;
+    test_int();
+    printf("program resume...\n");
 
     for (;;); // never return
     

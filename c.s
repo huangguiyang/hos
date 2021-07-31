@@ -12,7 +12,7 @@
 .section .text
 .globl _start, sti, hlt, gdt, idt, read_cursor, set_cursor
 .globl page_fault_handler, divide_error_handler
-.globl page_dir, invalidate_tlb
+.globl page_dir, invalidate_tlb, test_int
 _start:
     mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
@@ -179,6 +179,10 @@ invalidate_tlb:
     mov %eax, %cr3
     ret
 
+test_int:
+    int $0
+    ret
+
 ## 中断和异常处理程序
 page_fault_handler:
     xchg %eax, (%esp)           # (%esp) 是CPU放置的错误码
@@ -240,10 +244,13 @@ stack_top:
 
 .section .data
 # GDT的描述符，用来加载到GDTR
+.align 4
+.word 0
 gdt_desc:
     .word 256*8-1               # 限长：6个*8字节/个=48字节 (0x30-1)
     .long gdt                   # gdt地址
 
+.word 0
 idt_desc:
     .word 256*8-1
     .long idt
