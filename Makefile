@@ -1,4 +1,4 @@
-# Makefile
+T=floppy.img
 # no-builtin-printf: 不要把printf调用优化成puts
 # no-asynchronous-unwind-tables: 不要 .eh_frame section
 # no-stack-protector: GCC11 undefined __stack_chk_fail
@@ -16,7 +16,8 @@ CFLAGS=-Wall \
 LDFLAGS=-nostdlib
 OBFLAGS=-O binary -R .comment -R .note -R .note.gnu.property
 
-all:: bootsect boot kern64
+$T: build bootsect boot kern64
+	./build bootsect boot kern64 > $@
 
 bootsect: bootsect.o
 	ld -m elf_i386 -Ttext 0 $< -o $@
@@ -25,15 +26,12 @@ bootsect: bootsect.o
 bootsect.o: bootsect.s
 	as --32 $< -o $@
 
-boot: boot.o boot32.o
+boot: boot.o
 	ld ${LDFLAGS} -m elf_i386 -Ttext 0 $< -o $@
 	objcopy ${OBFLAGS} $@
 
 boot.o: boot.s
 	as --32 $< -o $@
-
-boot32.o: boot32.c
-	gcc ${CFLAGS} -m32 -c $< -o $@
 
 start64.o: start64.s
 	as --64 $< -o $@
@@ -49,4 +47,4 @@ build: build.c
 	gcc -Wall build.c -o build
 
 clean::
-	@rm -f boot setup16 setup32 kern64 *.o $T build
+	@rm -f bootsect boot kern64 *.o $T build
