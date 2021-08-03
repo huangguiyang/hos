@@ -294,8 +294,8 @@ gdt:
 # 0~15: Limit, 16~47: 32-bit base address
 .word 0
 gdt_desc:
-    .word 3*8-1                 # 限长
-    .word 0x8000+gdt,0x0        # gdt地址: 0x8000 + gdt
+    .word 3*8-1         # 限长
+    .word gdt,0x0       # gdt地址
 
 .word 0
 idt_desc:
