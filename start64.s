@@ -1,5 +1,3 @@
-# 64位保护模式
-
 .code64
 
 .section .text

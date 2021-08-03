@@ -1,11 +1,8 @@
-
-
-T=floppy.img
-OBJS=kern.o main.o
+# Makefile
 # no-builtin-printf: 不要把printf调用优化成puts
 # no-asynchronous-unwind-tables: 不要 .eh_frame section
 # no-stack-protector: GCC11 undefined __stack_chk_fail
-CFLAGS=-Wall -m64 \
+CFLAGS=-Wall \
 		-nostdlib \
 		-nostdinc \
 		-fno-builtin \
@@ -16,52 +13,40 @@ CFLAGS=-Wall -m64 \
 		-fno-builtin-printf \
 		-fno-asynchronous-unwind-tables \
 		-fno-stack-protector
-LDFLAGS=-nostdlib -m elf_x86_64
+LDFLAGS=-nostdlib
 OBFLAGS=-O binary -R .comment -R .note -R .note.gnu.property
 
-$T: boot setup16 setup32 setup64 kern64 build
-	./build boot setup16 setup32 setup64 kern64 > $@
+all:: bootsect boot kern64
 
-boot: boot.o
+bootsect: bootsect.o
 	ld -m elf_i386 -Ttext 0 $< -o $@
+	objcopy ${OBFLAGS} $@
+
+bootsect.o: bootsect.s
+	as --32 $< -o $@
+
+boot: boot.o boot32.o
+	ld ${LDFLAGS} -m elf_i386 -Ttext 0 $< -o $@
 	objcopy ${OBFLAGS} $@
 
 boot.o: boot.s
 	as --32 $< -o $@
 
-setup16: setup16.o
-	ld -m elf_i386 -Ttext 0 $< -o $@
-	objcopy ${OBFLAGS} $@
+boot32.o: boot32.c
+	gcc ${CFLAGS} -m32 -c $< -o $@
 
-setup16.o: setup16.s
-	as --32 $< -o $@
-
-setup32: setup32.o
-	ld -m elf_i386 -Ttext 0 $< -o $@
-	objcopy ${OBFLAGS} $@
-
-setup32.o: setup32.s
-	as --32 $< -o $@
-
-setup64: setup64.o
-	ld -m elf_x86_64 -Ttext 0 $< -o $@
-	objcopy ${OBFLAGS} $@
-
-setup64.o: setup64.s
-	as --64 $< -o $@
-
-kern.o: kern.s
+start64.o: start64.s
 	as --64 $< -o $@
 
 %.o: %.c
-	gcc ${CFLAGS} -c $< -o $@
+	gcc ${CFLAGS} -m64 -c $< -o $@
 
-kern64: ${OBJS}
-	ld ${LDFLAGS} -Ttext 0 $< -o $@
+kern64: start64.o main.o
+	ld ${LDFLAGS} -m elf_x86_64 -Ttext 0 $< -o $@
 	objcopy ${OBFLAGS} $@
 
 build: build.c
 	gcc -Wall build.c -o build
 
 clean::
-	@rm -f boot setup16 setup32 setup64 kern64 *.o $T build
+	@rm -f boot setup16 setup32 kern64 *.o $T build
