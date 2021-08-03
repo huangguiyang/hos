@@ -19,7 +19,7 @@ label_5A:
     # DL = 磁盘号（00H-7FH 软盘，80H-FFH 硬盘）
 load:
     xor %bx, %bx
-    mov $0x9600, %ax        # 0x9600:0x0000 = 600K
+    mov $0x0800, %ax        # 0x0800:0x0000 = 32K
     mov %ax, %es            # destination es:bx
     movb $0x02, %ah         # read sectors
     movb $0x04, %al         # number of sectors
@@ -35,7 +35,7 @@ load:
     jmp load
 
 load_ok:
-    ljmp $0x9600, $0
+    ljmp $0, $0x8000
 
 .org 446, 0
     # partition table (64 bytes)

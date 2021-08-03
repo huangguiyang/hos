@@ -1,4 +1,4 @@
-# loaded at 0x9600:0x0000 (600K)
+# loaded at 0x0800:0x0000 (32K)
 
 .code16
 
@@ -28,40 +28,6 @@ _start:
 
     # 紧接一个 far jmp
     ljmp $0x08, $_start32       # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
-
-# IA-32的段描述符8字节，其中4个字节是段基址，20位段限长
-# 段的长度除了段限长，还要乘以粒度（1字节或4K）
-# 因此，段长度有1MB或4GB两种。
-
-# 全局描述符表
-.align 8
-gdt:
-    .word 0,0,0,0       # 第一个必须为空
-    
-    # 0-4GB的代码段
-    .word 0xFFFF        # limit
-    .word 0x6000        # 基址 (0x96000)
-    .word 0x9A09        # 代码段，rx权限
-    .word 0x00CF        # 粒度-4K，32位操作数
-
-    # 0-4GB的数据段
-    .word 0xFFFF        # limit
-    .word 0x6000        # 基址 (0x96000)
-    .word 0x9209        # 数据段，rw权限
-    .word 0x00CF        # 粒度-4K，32位操作数
-
-# GDT的描述符，用来加载到GDTR
-# Pseudo-Descriptor Format
-# 0~15: Limit, 16~47: 32-bit base address
-.word 0
-gdt_desc:
-    .word 3*8-1                 # 限长
-    .word 0x6000+gdt,0x9        # gdt地址: 0x9600 + gdt
-
-.word 0
-idt_desc:
-    .word 0
-    .word 0,0
 
 enable_a20:
     # 开启A20地址线
@@ -233,19 +199,6 @@ read_fail:
 die:
     hlt
 
-.align 2
-head:
-    .word 0                 # 当前磁头号
-
-sector:
-    .word KSEC-1            # 当前磁道已读扇区数
-
-track:
-    .word 0                 # 当前磁道号
-
-nsector:
-    .word 0                 # 每个磁道的扇区个数
-
 
 #
 # 32位保护模式
@@ -256,6 +209,7 @@ nsector:
 .set STACK_TOP, 0x9FFF0     # about 640K
 
 _start32:
+    hlt
     mov $0x10, %eax         # 数据段选择子
     mov %ax, %ds
     mov %ax, %es
@@ -300,3 +254,50 @@ rp_pte:
     or $0x80000000, %eax        # 最高位是PG (Paging)
     mov %eax, %cr0              # PG=1
     ret
+
+.section .data
+head:
+    .word 0                 # 当前磁头号
+
+sector:
+    .word KSEC-1            # 当前磁道已读扇区数
+
+track:
+    .word 0                 # 当前磁道号
+
+nsector:
+    .word 0                 # 每个磁道的扇区个数
+
+# IA-32的段描述符8字节，其中4个字节是段基址，20位段限长
+# 段的长度除了段限长，还要乘以粒度（1字节或4K）
+# 因此，段长度有1MB或4GB两种。
+
+# 全局描述符表
+.align 8
+gdt:
+    .word 0,0,0,0       # 第一个必须为空
+    
+    # 0-4GB的代码段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9A00        # 代码段，rx权限
+    .word 0x00CF        # 粒度-4K，32位操作数
+
+    # 0-4GB的数据段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9200        # 数据段，rw权限
+    .word 0x00CF        # 粒度-4K，32位操作数
+
+# GDT的描述符，用来加载到GDTR
+# Pseudo-Descriptor Format
+# 0~15: Limit, 16~47: 32-bit base address
+.word 0
+gdt_desc:
+    .word 3*8-1                 # 限长
+    .word 0x8000+gdt,0x0        # gdt地址: 0x8000 + gdt
+
+.word 0
+idt_desc:
+    .word 0
+    .word 0,0
