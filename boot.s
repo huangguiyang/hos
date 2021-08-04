@@ -236,12 +236,24 @@ gdt:
     .word 0x9200        # 数据段，rw权限
     .word 0x00CF        # 粒度-4K，32位操作数
 
+    # 0-4G代码段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9A00        # 代码段，rx权限
+    .word 0x00CF        # 粒度-4K，32位操作数
+
+    # 0-4G数据段
+    .word 0xFFFF        # limit
+    .word 0x0000        # 基址
+    .word 0x9200        # 数据段，rw权限
+    .word 0x00CF        # 粒度-4K，32位操作数
+
 # GDT的描述符，用来加载到GDTR
 # Pseudo-Descriptor Format
 # 0~15: Limit, 16~47: 32-bit base address
 .word 0
 gdt_desc:
-    .word 4*8-1                 # 限长
+    .word 6*8-1                 # 限长
     .word 0x6000+gdt,0x9        # gdt地址
 
 .word 0
@@ -268,10 +280,14 @@ _start32:
     push $paging_ok
     jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
 paging_ok:
+    mov $0x80000008, %eax
+    cpuid
+    movb %al, phy_addr_bits     # 物理地址位数，即 MAXPHYADDR
+    movb %ah, line_addr_bits    # 线性地址位数（通常是48）
     push $paging_ok64
     jmp setup_paging64
 paging_ok64:
-    hlt
+    ljmp $0x20, $0x10000        # 跳到64K处，终于进入64位模式了
 
 stack_top:
     .long STACK_TOP             # 32-bits offset
@@ -281,7 +297,7 @@ stack_top:
     # 页目录表地址0，因为BIOS已经用不到了
 setup_paging:
     # 修改数据段
-    mov $0x20, %eax
+    mov $0x18, %eax
     mov %ax, %ds
 
     xor %eax, %eax
@@ -328,6 +344,7 @@ setup_paging64:
     
     mov %cr4, %eax
     or $0x00000020, %eax        # PAE=1
+    and $0xfffdffff, %eax       # PCIDE=0
     mov %eax, %cr4
 
     call setup_4_level_paging
@@ -349,5 +366,49 @@ setup_paging64:
     mov %eax, %cr0
     ret
 
+    # 64位模式下CR3是64位，但现在我们在32位模式下！
+    # 因此，此时映射表只能在4GB线性空间内
+    # 如果需要放在4GB以上地址，需要切到64位后再重新映射
 setup_4_level_paging:
+    # 修改数据段
+    mov $0x18, %eax
+    mov %ax, %ds
+
+    mov $0x100000, %ebx         # 1MB       PML4E
+    movl $0x101000+3, (%ebx)
+    movl $0, 4(%ebx)
+
+    mov $0x101000, %ebx         # 1MB+4k    PDPTE
+    movl $0x102000+3, (%ebx)
+    movl $0, 4(%ebx)
+
+    mov $0x102000, %ebx         # 1MB+8k    PDE
+    movl $0x103000+3, (%ebx)
+    movl $0, 4(%ebx)
+
+    # 初始化第一个PTE，可以映射2MB
+    mov $0x103000, %ebx         # 1MB+12k   PTE
+    mov $512, %ecx
+    xor %eax, %eax
+    add $3, %eax                # U/S=0,R/W=1,P=1
+rp_pte64:
+    mov %eax, (%ebx)
+    movl $0, 4(%ebx)
+    add $0x1000, %eax           # 加4K
+    add $8, %ebx
+    dec %ecx
+    jne rp_pte64
+
+    # 恢复数据段
+    mov $0x10, %eax
+    mov %ax, %ds
+
+    # 初始化CR3
+    mov $0x100000, %eax
+    mov %eax, %cr3
     ret
+
+phy_addr_bits:
+    .byte 0
+line_addr_bits:
+    .byte 0

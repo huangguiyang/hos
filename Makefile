@@ -40,7 +40,7 @@ start64.o: start64.s
 	gcc ${CFLAGS} -m64 -c $< -o $@
 
 kern64: start64.o main.o
-	ld ${LDFLAGS} -m elf_x86_64 -Ttext 0 $< -o $@
+	ld ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $< -o $@
 	objcopy ${OBFLAGS} $@
 
 build: build.c
