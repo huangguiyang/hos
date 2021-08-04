@@ -27,7 +27,7 @@ bootsect.o: bootsect.s
 	as --32 $< -o $@
 
 boot: boot.o
-	ld ${LDFLAGS} -m elf_i386 -Ttext 0x8000 $< -o $@
+	ld ${LDFLAGS} -m elf_i386 -Ttext 0 $< -o $@
 	objcopy ${OBFLAGS} $@
 
 boot.o: boot.s
