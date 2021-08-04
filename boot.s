@@ -231,8 +231,6 @@ gdt:
     .word 0x9209        # 数据段，rw权限
     .word 0x00CF        # 粒度-4K，32位操作数
 
-    .word 0,0,0,0
-
     .word 0xFFFF        # limit
     .word 0x0000        # 基址
     .word 0x9200        # 数据段，rw权限
@@ -243,7 +241,7 @@ gdt:
 # 0~15: Limit, 16~47: 32-bit base address
 .word 0
 gdt_desc:
-    .word 5*8-1                 # 限长
+    .word 4*8-1                 # 限长
     .word 0x6000+gdt,0x9        # gdt地址
 
 .word 0
@@ -267,14 +265,17 @@ _start32:
     mov %ax, %gs
     lss stack_top, %esp
 
-    push $paged32
-    jmp setup_paging
-paged32:
+    push $paging_ok
+    jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
+paging_ok:
+    push $paging_ok64
+    jmp setup_paging64
+paging_ok64:
     hlt
 
 stack_top:
     .long STACK_TOP             # 32-bits offset
-    .word 0x20                  # 16-bits selector
+    .word 0x18                  # 16-bits selector
 
     # 初始化32位分页
     # 页目录表地址0，因为BIOS已经用不到了
@@ -286,10 +287,10 @@ setup_paging:
     xor %eax, %eax
     movl $0x1000+7, (%eax)      # A=0,PCD=0,PWT=0,U/S=1,R/W=1,P=1
     
-    # 初始化页表 [0-255] 即 0-1MB 内存页
+    # 初始化页表 [0-1023] 即 0-4MB 内存页
     movl (%eax), %ebx
     and $0xfffff000, %ebx        # ebx = 第一个页表地址
-    mov $256, %ecx
+    mov $1024, %ecx
     xor %eax, %eax
     add $3, %eax                # U/S=0,R/W=1,P=1
 rp_pte:
@@ -311,4 +312,42 @@ rp_pte:
     mov %cr0, %eax
     or $0x80000000, %eax        # 最高位是PG (Paging)
     mov %eax, %cr0              # PG=1
+    ret
+
+    # 开启64位模式步骤
+    # 1.首先进入保护模式，且开启分页
+    # 2.关闭分页: CR0.PG = 0
+    # 3.开启PAE: CR4.PAE = 1
+    # 4.加载四级分页表：CR3 = PML4
+    # 5.开启64位模式：IA32_EFER.LME = 1
+    # 6.开启分页：CR0.PG = 1
+setup_paging64:
+    mov %cr0, %eax
+    and $0x7fffffff, %eax       # 最高位是PG (Paging)
+    mov %eax, %cr0              # PG=0
+    
+    mov %cr4, %eax
+    or $0x00000020, %eax        # PAE=1
+    mov %eax, %cr4
+
+    call setup_4_level_paging
+
+    # 查阅Intel手册4，得知IA32_EFER地址为C000_0080
+    # 64位寄存器，其中：
+    # bit 8: LME (Long Mode Enable)
+    # bit 10: LMA (Long Mode Active)
+    # MSR指令说明：
+    # RDMSR: 读取ECX指定的MSR到EDX:EAX
+    # WRMSR: 将EDX:EAX写入ECX指定的MSR
+    mov $0xc0000080, %ecx
+    rdmsr
+    or $0x100, %eax             # IA32_EFER.LME=1
+    wrmsr
+
+    mov %cr0, %eax
+    or $0x80000000, %eax        # PG=1
+    mov %eax, %cr0
+    ret
+
+setup_4_level_paging:
     ret
