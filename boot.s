@@ -240,7 +240,7 @@ gdt:
     .word 0xFFFF        # limit
     .word 0x0000        # 基址
     .word 0x9A00        # 代码段，rx权限
-    .word 0x00CF        # 粒度-4K，32位操作数
+    .word 0x00AF        # 粒度-4K，32位操作数 (long mode)
 
     # 0-4G数据段
     .word 0xFFFF        # limit
@@ -280,8 +280,6 @@ _start32:
     push $paging_ok
     jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
 paging_ok:
-    mov $0x80000008, %eax
-    cpuid
     movb %al, phy_addr_bits     # 物理地址位数，即 MAXPHYADDR
     movb %ah, line_addr_bits    # 线性地址位数（通常是48）
     push $paging_ok64

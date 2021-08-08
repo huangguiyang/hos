@@ -5,7 +5,6 @@ T=floppy.img
 CFLAGS=-Wall \
 		-nostdlib \
 		-nostdinc \
-		-fno-builtin \
 		-fno-pic \
 		-fno-pie \
 		-fno-exceptions \
@@ -20,27 +19,27 @@ $T: build bootsect boot kern64
 	./build bootsect boot kern64 > $@
 
 bootsect: bootsect.o
-	ld -m elf_i386 -Ttext 0 $< -o $@
+	ld -m elf_i386 -Ttext 0 $^ -o $@
 	objcopy ${OBFLAGS} $@
 
 bootsect.o: bootsect.s
-	as --32 $< -o $@
+	as --32 $^ -o $@
 
 boot: boot.o
-	ld ${LDFLAGS} -m elf_i386 -Ttext 0 $< -o $@
+	ld ${LDFLAGS} -m elf_i386 -Ttext 0 $^ -o $@
 	objcopy ${OBFLAGS} $@
 
 boot.o: boot.s
-	as --32 $< -o $@
+	as --32 $^ -o $@
 
 start64.o: start64.s
-	as --64 $< -o $@
+	as --64 $^ -o $@
 
 %.o: %.c
-	gcc ${CFLAGS} -m64 -c $< -o $@
+	gcc ${CFLAGS} -m64 -c $^ -o $@
 
 kern64: start64.o main.o
-	ld ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $< -o $@
+	ld ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $^ -o $@
 	objcopy ${OBFLAGS} $@
 
 build: build.c
