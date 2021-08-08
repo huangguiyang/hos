@@ -15,8 +15,11 @@ _start:
     mov %ax, %ss
     mov $0x4FF0, %sp            # about 20K
 
-    cli
     call load                   # load kern64 to 0x1000:0x0000 (64K)
+
+    # FIX: vmware, 先bios加载完成后再关中断
+    #       否则 vmware 下报错；bochs 则正常
+    cli
 
     lidt idt_desc               # load IDT
     lgdt gdt_desc               # load GDT
