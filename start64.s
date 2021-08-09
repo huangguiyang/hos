@@ -8,7 +8,7 @@
 .globl _start, hlt, sti, cpuid
 .globl inb, inw, indw, outb, outw, outdw
 _start:
-    movl $0x28, %eax            # 数据段选择符
+    movl $0x10, %eax            # 数据段选择符
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs

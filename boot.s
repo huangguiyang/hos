@@ -17,6 +17,20 @@ _start:
 
     call load                   # load kern64 to 0x1000:0x0000 (64K)
 
+    # 不需要BIOS了，为了简化段描述符，将自己移动到地址0
+    xor %ax, %ax
+    cld
+    mov %ax, %es                # destination: es:di
+    xor %di, %di
+    mov $0x9600, %ax
+    mov %ax, %ds                # source: ds:si
+    xor %si, %si
+    mov $0x1000, %cx            # 2*4K
+    rep
+    movsw
+    ljmp $0, $end_move
+
+end_move:
     # FIX: vmware, 先bios加载完成后再关中断
     #       否则 vmware 下报错；bochs 则正常
     cli
@@ -225,13 +239,8 @@ gdt:
     .word 0,0,0,0       # 第一个必须为空
     
     .word 0xFFFF        # limit
-    .word 0x6000        # 基址
-    .word 0x9A09        # 代码段，rx权限
-    .word 0x00CF        # 粒度-4K，32位操作数
-
-    .word 0xFFFF        # limit
-    .word 0x6000        # 基址
-    .word 0x9209        # 数据段，rw权限
+    .word 0x0000        # 基址
+    .word 0x9A00        # 代码段，rx权限
     .word 0x00CF        # 粒度-4K，32位操作数
 
     .word 0xFFFF        # limit
@@ -239,25 +248,18 @@ gdt:
     .word 0x9200        # 数据段，rw权限
     .word 0x00CF        # 粒度-4K，32位操作数
 
-    # 0-4G代码段
     .word 0xFFFF        # limit
     .word 0x0000        # 基址
     .word 0x9A00        # 代码段，rx权限
-    .word 0x00AF        # 粒度-4K，32位操作数 (long mode)
-
-    # 0-4G数据段
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9200        # 数据段，rw权限
-    .word 0x00CF        # 粒度-4K，32位操作数
+    .word 0x00AF        # 粒度-4K，long mode
 
 # GDT的描述符，用来加载到GDTR
 # Pseudo-Descriptor Format
 # 0~15: Limit, 16~47: 32-bit base address
 .word 0
 gdt_desc:
-    .word 6*8-1                 # 限长
-    .word 0x6000+gdt,0x9        # gdt地址
+    .word 4*8-1         # 限长
+    .word gdt,0         # gdt地址
 
 .word 0
 idt_desc:
@@ -271,6 +273,7 @@ idt_desc:
 .code32
 
 .set STACK_TOP, 0x9FFF0     # about 640K
+.set PAGE_DIR, 0x2000       # 8K
 
 _start32:
     mov $0x10, %eax         # 数据段选择子
@@ -283,28 +286,19 @@ _start32:
     push $paging_ok
     jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
 paging_ok:
-    mov $0x80000008, %eax
-    cpuid
-    movb %al, phy_addr_bits     # 物理地址位数，即 MAXPHYADDR
-    movb %ah, line_addr_bits    # 线性地址位数（通常是48）
-    push $paging_ok64
-    jmp setup_paging64
-paging_ok64:
-    ljmp $0x20, $0x10000        # 跳到64K处，终于进入64位模式了
+    push $enter64_ok
+    jmp enter64
+enter64_ok:
+    ljmp $0x18, $0x10000        # 跳到64K处，终于进入64位模式了
 
 stack_top:
     .long STACK_TOP             # 32-bits offset
-    .word 0x18                  # 16-bits selector
+    .word 0x10                  # 16-bits selector
 
     # 初始化32位分页
-    # 页目录表地址0，因为BIOS已经用不到了
 setup_paging:
-    # 修改数据段
-    mov $0x18, %eax
-    mov %ax, %ds
-
-    xor %eax, %eax
-    movl $0x1000+7, (%eax)      # A=0,PCD=0,PWT=0,U/S=1,R/W=1,P=1
+    movl $PAGE_DIR, %eax          # page dir address
+    movl $PAGE_DIR+0x1000+7, (%eax)  # A=0,PCD=0,PWT=0,U/S=1,R/W=1,P=1
     
     # 初始化页表 [0-1023] 即 0-4MB 内存页
     movl (%eax), %ebx
@@ -312,21 +306,17 @@ setup_paging:
     mov $1024, %ecx
     xor %eax, %eax
     add $3, %eax                # U/S=0,R/W=1,P=1
-rp_pte:
+pte:
     mov %eax, (%ebx)
     add $0x1000, %eax           # 加4K
     add $4, %ebx
     dec %ecx
-    jne rp_pte
-
-    # 恢复数据段
-    mov $0x10, %eax
-    mov %ax, %ds
+    jne pte
 
     # 修改CR3和CR0寄存器，开启分页
     # CR3指向页目录，CR0设置PG位
     # 由于页目录4K对齐，直接mov到CR3即可
-    mov $0, %eax
+    mov $0x2000, %eax
     mov %eax, %cr3              # PCD=0,PWT=0
     mov %cr0, %eax
     or $0x80000000, %eax        # 最高位是PG (Paging)
@@ -340,7 +330,7 @@ rp_pte:
     # 4.加载四级分页表：CR3 = PML4
     # 5.开启64位模式：IA32_EFER.LME = 1
     # 6.开启分页：CR0.PG = 1
-setup_paging64:
+enter64:
     mov %cr0, %eax
     and $0x7fffffff, %eax       # 最高位是PG (Paging)
     mov %eax, %cr0              # PG=0
@@ -350,7 +340,7 @@ setup_paging64:
     and $0xfffdffff, %eax       # PCIDE=0
     mov %eax, %cr4
 
-    call setup_4_level_paging
+    call setup_paging64
 
     # 查阅Intel手册4，得知IA32_EFER地址为C000_0080
     # 64位寄存器，其中：
@@ -369,14 +359,11 @@ setup_paging64:
     mov %eax, %cr0
     ret
 
+    # 4-Level-Paging
     # 64位模式下CR3是64位，但现在我们在32位模式下！
     # 因此，此时映射表只能在4GB地址空间内
     # 如果需要放在4GB以上地址，需要切到64位后再重新映射
-setup_4_level_paging:
-    # 修改数据段
-    mov $0x18, %eax
-    mov %ax, %ds
-
+setup_paging64:
     mov $0x100000, %ebx         # 1MB       PML4E
     movl $0x101000+3, (%ebx)
     movl $0, 4(%ebx)
@@ -394,24 +381,15 @@ setup_4_level_paging:
     mov $512, %ecx
     xor %eax, %eax
     add $3, %eax                # U/S=0,R/W=1,P=1
-rp_pte64:
+pte64:
     mov %eax, (%ebx)
     movl $0, 4(%ebx)
     add $0x1000, %eax           # 加4K
     add $8, %ebx
     dec %ecx
-    jne rp_pte64
-
-    # 恢复数据段
-    mov $0x10, %eax
-    mov %ax, %ds
+    jne pte64
 
     # 初始化CR3
     mov $0x100000, %eax
     mov %eax, %cr3
     ret
-
-phy_addr_bits:
-    .byte 0
-line_addr_bits:
-    .byte 0
