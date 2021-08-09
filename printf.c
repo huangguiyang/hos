@@ -153,7 +153,7 @@ int puts(char *str)
     return (p - str);
 }
 
-static void outb(char *buffer, int ch, int color)
+static void out_byte(char *buffer, int ch, int color)
 {
     *(short *)buffer = ((color & 0xff) << 8) | (ch & 0xff);
 }
@@ -205,22 +205,11 @@ int putc(int c)
     // 2 bytes per character
     offset = 2 * (cursor_line * COLUMN_MAX + cursor_column);
     p = vga_buffer + offset;
-    outb(p, c, GREEN_COLOR);
+    out_byte(p, c, GREEN_COLOR);
     cursor_column++;
 
 update_position:
     offset = cursor_line * COLUMN_MAX + cursor_column;
     set_cursor(offset);
     return 1;
-}
-
-void *memset(void *p, int c, unsigned long len)
-{
-    char *q;
-    int i;
-
-    for (q = p, i = 0; i < len; i++, q++)
-        *q = c;
-
-    return p;
 }

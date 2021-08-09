@@ -9,6 +9,14 @@ extern void hlt(void);
 extern int read_cursor(void);
 extern void set_cursor(int position);
 
+// I/O PORTS
+extern void inb(int port, int *byte);
+extern void inw(int port, int *word);
+extern void indw(int port, int *dword);
+extern void outb(int port, int byte);
+extern void outw(int port, int word);
+extern void outdw(int port, int dword);
+
 struct cpuinfo {
     int eax,ebx,ecx,edx;
 };
