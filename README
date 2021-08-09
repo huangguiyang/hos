@@ -1,8 +1,9 @@
-A kernel demo with following modern features:
+A minimal kernel demo with following features:
 
-    - x86_64 architecture support
-    - APIC support
-    - MultiProcessors support
+    - x86_64
+    - APIC
+    - Multi-Processors
+    - Self-contained (no other dependencies)
 
 HOWTO:
     1. Run command 'make'.
