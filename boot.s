@@ -283,6 +283,8 @@ _start32:
     push $paging_ok
     jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
 paging_ok:
+    mov $0x80000008, %eax
+    cpuid
     movb %al, phy_addr_bits     # 物理地址位数，即 MAXPHYADDR
     movb %ah, line_addr_bits    # 线性地址位数（通常是48）
     push $paging_ok64
@@ -368,7 +370,7 @@ setup_paging64:
     ret
 
     # 64位模式下CR3是64位，但现在我们在32位模式下！
-    # 因此，此时映射表只能在4GB线性空间内
+    # 因此，此时映射表只能在4GB地址空间内
     # 如果需要放在4GB以上地址，需要切到64位后再重新映射
 setup_4_level_paging:
     # 修改数据段
