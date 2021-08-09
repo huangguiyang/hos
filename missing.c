@@ -47,50 +47,28 @@ void set_cursor(int position)
     outb(0x03d5, position & 0xff);
 }
 
-int cpuid_max(void)
+void lscpu(void)
 {
     struct cpuinfo info;
+    int c;
 
     info.eax = 0;
     cpuid(&info);
-    return info.eax;
-}
+    c = info.eax;
+    printf("CPUID MAX: %d\n", c);
 
-// 是否支持硬件多线程 (Hardware Multi-Threading)
-int hmt_supported_p(void)
-{
-    struct cpuinfo info;
-
+    // 是否支持硬件多线程 (Hardware Multi-Threading)
     info.eax = 1;
     cpuid(&info);
-    return (info.edx >> 28) & 1;
-}
-
-// 逻辑处理器个数
-int n_logical_processors(void)
-{
-    struct cpuinfo info;
-
-    info.eax = 1;
-    cpuid(&info);
-    return (info.ebx >> 16) & 0xff;
-}
-
-// 核心数
-int n_cores(void)
-{
-    struct cpuinfo info;
-
+    c = (info.edx >> 28) & 1;
+    printf("HMT supported: %d\n", c);
+    
+    c = (info.ebx >> 16) & 0xff;
+    printf("Logical Processors: %d\n", c);
+    
     info.eax = 4;
     info.ecx = 0;
     cpuid(&info);
-    return 1 + ((info.eax >> 16) & 0xff);
-}
-
-void lscpu(void)
-{
-    printf("CPUID MAX: %d\n", cpuid_max());
-    printf("HMT supported: %d\n", hmt_supported_p());
-    printf("Logical Processors: %d\n", n_logical_processors());
-    printf("Cores: %d\n", n_cores());
+    c = 1 + ((info.eax >> 16) & 0xff);
+    printf("Cores: %d\n", c);
 }

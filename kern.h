@@ -29,7 +29,6 @@ extern int puts(char *str);
 extern int putc(int c);
 extern void *memset(void *p, int c, unsigned long len);
 
-extern int cpuid_max(void);
 extern void lscpu(void);
 
 extern void apic_init(void);
