@@ -28,3 +28,10 @@ extern int vsnprintf(char *str, int size, const char *fmt, va_list ap);
 extern int puts(char *str);
 extern int putc(int c);
 extern void *memset(void *p, int c, unsigned long len);
+
+extern int cpuid_max(void);
+extern void lscpu(void);
+
+extern void apic_init(void);
+extern void mp_init(void);
+extern void task_init(void);

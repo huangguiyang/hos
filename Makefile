@@ -25,6 +25,7 @@ CFLAGS=-Wall \
 	-fno-stack-protector
 LDFLAGS=-nostdlib
 OBFLAGS=-O binary -R .comment -R .note -R .note.gnu.property
+KERN_OBJS=start64.o main.o printf.o missing.o apic.o mp.o task.o
 
 $T: build bootsect boot kern64
 	./build bootsect boot kern64 > $@
@@ -49,7 +50,7 @@ start64.o: start64.s
 %.o: %.c
 	${CC} ${CFLAGS} -m64 -c $^ -o $@
 
-kern64: start64.o main.o printf.o missing.o
+kern64: ${KERN_OBJS}
 	${LD} ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $^ -o $@
 	objcopy ${OBFLAGS} $@
 

@@ -46,3 +46,51 @@ void set_cursor(int position)
     outb(0x03d4, 0x0f);
     outb(0x03d5, position & 0xff);
 }
+
+int cpuid_max(void)
+{
+    struct cpuinfo info;
+
+    info.eax = 0;
+    cpuid(&info);
+    return info.eax;
+}
+
+// 是否支持硬件多线程 (Hardware Multi-Threading)
+int hmt_supported_p(void)
+{
+    struct cpuinfo info;
+
+    info.eax = 1;
+    cpuid(&info);
+    return (info.edx >> 28) & 1;
+}
+
+// 逻辑处理器个数
+int n_logical_processors(void)
+{
+    struct cpuinfo info;
+
+    info.eax = 1;
+    cpuid(&info);
+    return (info.ebx >> 16) & 0xff;
+}
+
+// 核心数
+int n_cores(void)
+{
+    struct cpuinfo info;
+
+    info.eax = 4;
+    info.ecx = 0;
+    cpuid(&info);
+    return 1 + ((info.eax >> 16) & 0xff);
+}
+
+void lscpu(void)
+{
+    printf("CPUID MAX: %d\n", cpuid_max());
+    printf("HMT supported: %d\n", hmt_supported_p());
+    printf("Logical Processors: %d\n", n_logical_processors());
+    printf("Cores: %d\n", n_cores());
+}

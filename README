@@ -1,7 +1,11 @@
+A kernel demo with following modern features:
+
+    - x86_64 architecture support
+    - APIC support
+    - MultiProcessors support
+
 HOWTO:
     1. Run command 'make'.
     2. Insert the 'floppy.img' to a virtual machine software and boot!
 
 
-// disassemble 16-bit
-objdump -D -b binary -mi386 -Maddr16,data16 filename
