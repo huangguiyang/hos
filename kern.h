@@ -31,6 +31,15 @@ extern void *memset(void *p, int c, unsigned long len);
 
 extern void lscpu(void);
 
+// IPI broadcast mode
+#define NO_BROCAST          0
+#define SELF                1
+#define ALL_INCLUDING_SELF  2
+#define ALL_EXCLUDING_SELF  3
+
 extern void apic_init(void);
 extern void mp_init(void);
 extern void task_init(void);
+
+extern void send_init_ipi(int mode, int asrt);
+extern void send_startup_ipi(int mode, int vector);
