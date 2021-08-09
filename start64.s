@@ -5,7 +5,7 @@
 .set STACK_TOP, 0x9FFF0     # about 640K
 
 .section .text
-.globl _start, set_cursor, read_cursor, hlt, sti
+.globl _start, set_cursor, read_cursor, hlt, sti, cpuid
 _start:
     movl $0x28, %eax            # 数据段选择符
     mov %ax, %ds
@@ -102,6 +102,22 @@ set_cursor:
     pop %rcx
     pop %rbx
     pop %rax
+    leave
+    ret
+
+    # void cpuid(struct cpuinfo *);
+cpuid:
+    push %rbp
+    mov %rsp, %rbp
+    movl (%rdi), %eax
+    movl 0x4(%rdi), %ebx
+    movl 0x8(%rdi), %ecx
+    movl 0xc(%rdi), %edx
+    cpuid
+    movl %eax, (%rdi)
+    movl %ebx, 0x4(%rdi)
+    movl %ecx, 0x8(%rdi)
+    movl %edx, 0xc(%rdi)
     leave
     ret
 
