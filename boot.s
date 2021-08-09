@@ -274,6 +274,7 @@ idt_desc:
 
 .set STACK_TOP, 0x9FFF0     # about 640K
 .set PAGE_DIR, 0x2000       # 8K
+.set PAGE_DIR64, 0x100000   # 1M
 
 _start32:
     mov $0x10, %eax         # 数据段选择子
@@ -360,36 +361,36 @@ enter64:
     ret
 
     # 4-Level-Paging
-    # 64位模式下CR3是64位，但现在我们在32位模式下！
+    # 64位模式下CR3是64位，但现在我们在32位模式下，
     # 因此，此时映射表只能在4GB地址空间内
     # 如果需要放在4GB以上地址，需要切到64位后再重新映射
 setup_paging64:
-    mov $0x100000, %ebx         # 1MB       PML4E
-    movl $0x101000+3, (%ebx)
+    mov $PAGE_DIR64, %ebx           # PML4E
+    movl $PAGE_DIR64+0x1000+3, (%ebx)
     movl $0, 4(%ebx)
 
-    mov $0x101000, %ebx         # 1MB+4k    PDPTE
-    movl $0x102000+3, (%ebx)
+    mov $PAGE_DIR64+0x1000, %ebx    # PDPTE
+    movl $PAGE_DIR64+0x2000+3, (%ebx)
     movl $0, 4(%ebx)
 
-    mov $0x102000, %ebx         # 1MB+8k    PDE
-    movl $0x103000+3, (%ebx)
+    mov $PAGE_DIR64+0x2000, %ebx    # PDE
+    movl $PAGE_DIR64+0x3000+3, (%ebx)
     movl $0, 4(%ebx)
 
     # 初始化第一个PTE，可以映射2MB
-    mov $0x103000, %ebx         # 1MB+12k   PTE
+    mov $PAGE_DIR64+0x3000, %ebx    # PTE
     mov $512, %ecx
     xor %eax, %eax
-    add $3, %eax                # U/S=0,R/W=1,P=1
+    add $3, %eax                    # U/S=0,R/W=1,P=1
 pte64:
     mov %eax, (%ebx)
     movl $0, 4(%ebx)
-    add $0x1000, %eax           # 加4K
+    add $0x1000, %eax               # 加4K
     add $8, %ebx
     dec %ecx
     jne pte64
 
     # 初始化CR3
-    mov $0x100000, %eax
+    mov $PAGE_DIR64, %eax
     mov %eax, %cr3
     ret
