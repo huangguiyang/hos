@@ -37,6 +37,14 @@ load:
 load_ok:
     ljmp $0x9600, $0
 
+.org 426, 0
+boot_tab:
+    # location information for 'boot' file
+    # format: 
+    # [0]nsectors, [1]cylinder, [2]head, [3]sector
+    # ...
+    # 0,0,0,0
+
 .org 446, 0
     # partition table (64 bytes)
 
