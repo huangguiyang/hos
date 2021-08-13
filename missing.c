@@ -46,29 +46,3 @@ void set_cursor(int position)
     outb(0x03d4, 0x0f);
     outb(0x03d5, position & 0xff);
 }
-
-void lscpu(void)
-{
-    struct cpuinfo info;
-    int c;
-
-    info.eax = 0;
-    cpuid(&info);
-    c = info.eax;
-    printf("CPUID MAX: %d\n", c);
-
-    // 是否支持硬件多线程 (Hardware Multi-Threading)
-    info.eax = 1;
-    cpuid(&info);
-    c = (info.edx >> 28) & 1;
-    printf("HMT supported: %d\n", c);
-    
-    c = (info.ebx >> 16) & 0xff;
-    printf("Logical Processors: %d\n", c);
-    
-    info.eax = 4;
-    info.ecx = 0;
-    cpuid(&info);
-    c = 1 + ((info.eax >> 16) & 0xff);
-    printf("Cores: %d\n", c);
-}

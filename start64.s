@@ -7,6 +7,7 @@
 .section .text
 .globl _start, hlt, sti, cpuid
 .globl inb, inw, indw, outb, outw, outdw
+.globl rdmsr, wrmsr
 _start:
     movl $0x10, %eax            # 数据段选择符
     mov %ax, %ds
@@ -86,6 +87,33 @@ cpuid:
     movl %ecx, 0x8(%rdi)
     movl %edx, 0xc(%rdi)
     ret
+
+    # MSR指令说明：
+    # RDMSR: 读取ECX指定的MSR到EDX:EAX
+    # WRMSR: 将EDX:EAX写入ECX指定的MSR
+
+    # void rdmsr(int addr, int *low, int *high);
+rdmsr:
+    mov %rdx, %r8           # save high
+    mov %rdi, %rcx
+    rdmsr
+    cmp $0, %rsi
+    je rdmsr_high
+    movl %edx, (%r8)
+rdmsr_high:
+    cmp $0, %r8
+    je rdmsr_ret 
+    movl %eax, (%rsi)
+rdmsr_ret:
+    ret
+
+    # void wrmsr(int addr, int low, int high);
+wrmsr:
+    mov %rdi, %rcx
+    mov %esi, %eax          # low (high already in edx)
+    wrmsr
+    ret
+
 
 .section .data
 

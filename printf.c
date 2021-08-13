@@ -3,6 +3,9 @@
 #define INT_MIN 0x80000000
 #define INT_MAX 0x7FFFFFFF
 
+#define LONG_MIN 0x8000000000000000
+#define LONG_MAX 0x7FFFFFFFFFFFFFFF
+
 #define LINE_MAX    25
 #define COLUMN_MAX  80
 #define PAGE_MAX    8
@@ -67,11 +70,13 @@ static void fmt_puts(struct fmt *f, char *s)
         fmt_putc(f, *s);
 }
 
-// %c,%d,%x,%s,%p
+// %c,%d,%x,%s,%p,%ld,%lx
 int vsnprintf(char *str, int size, const char *fmt, va_list ap)
 {
     int c;
     unsigned int u;
+    long l;
+    unsigned long ul;
     char *s;
     char b[64];
     struct fmt f;
@@ -110,7 +115,6 @@ int vsnprintf(char *str, int size, const char *fmt, va_list ap)
             break;
         
         case 'x':
-        case 'p':
             u = va_arg(ap, int);
             s = b + sizeof(b) - 1;
             *s = 0;
@@ -122,16 +126,64 @@ int vsnprintf(char *str, int size, const char *fmt, va_list ap)
                     *--s = c + '0';
                 u >>= 4;
             } while (u);
-            if (*fmt == 'p') {
-                *--s = 'x';
-                *--s = '0';
-            }
+            fmt_puts(&f, s);
+            break;
+
+        case 'p':
+            ul = va_arg(ap, unsigned long);
+            s = b + sizeof(b) - 1;
+            *s = 0;
+            do {
+                c = ul & 0x0f;
+                if (c >= 10)
+                    *--s = c - 10 + 'A';
+                else
+                    *--s = c + '0';
+                ul >>= 4;
+            } while (ul);
+            *--s = 'x';
+            *--s = '0';
             fmt_puts(&f, s);
             break;
         
         case 's':
             s = va_arg(ap, char *);
             fmt_puts(&f, s);
+            break;
+
+        case 'l':
+            fmt++;
+            if (*fmt == 'd') {
+                l = va_arg(ap, long);
+                if (l == LONG_MIN)
+                    ul = (unsigned long)LONG_MAX + 1;
+                else if (l < 0)
+                    ul = -l;
+                else
+                    ul = l;
+                s = b + sizeof(b) - 1;
+                *s = 0;
+                do {
+                    *--s = ul % 10 + '0';
+                    ul /= 10;
+                } while (ul);
+                if (l < 0)
+                    *--s = '-';
+                fmt_puts(&f, s);
+            } else if (*fmt == 'x') {
+                ul = va_arg(ap, unsigned long);
+                s = b + sizeof(b) - 1;
+                *s = 0;
+                do {
+                    c = ul & 0x0f;
+                    if (c >= 10)
+                        *--s = c - 10 + 'A';
+                    else
+                        *--s = c + '0';
+                    ul >>= 4;
+                } while (ul);
+                fmt_puts(&f, s);
+            }
             break;
         
         default:
