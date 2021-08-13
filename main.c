@@ -29,6 +29,20 @@ static void lscpu(void)
     printf("Cores: %d\n", c);
 }
 
+static int fix_mttrs[] = {
+    IA32_MTRR_FIX64K_00000,
+    IA32_MTRR_FIX16K_80000,
+    IA32_MTRR_FIX16K_A0000,
+    IA32_MTRR_FIX4K_C0000,
+    IA32_MTRR_FIX4K_C8000,
+    IA32_MTRR_FIX4K_D0000,
+    IA32_MTRR_FIX4K_D8000,
+    IA32_MTRR_FIX4K_E0000,
+    IA32_MTRR_FIX4K_E8000,
+    IA32_MTRR_FIX4K_F0000,
+    IA32_MTRR_FIX4K_F8000,
+};
+
 static int physbase_mtrrs[] = {
     IA32_MTRR_PHYSBASE0,
     IA32_MTRR_PHYSBASE1,
@@ -88,13 +102,20 @@ static void lsmtrr(void)
 
     if (fix && fe) {
         // dump fix mtrr
+        c = NELMS(fix_mttrs);
+        for (i = 0; i < c; i++) {
+            rdmsr(fix_mttrs[i], &low, &high);
+            base = ((long)high << 32) | low;
+            printf("FIX[%d]: %lx, ", i, base);
+        }
+        printf("\n");
     }
 
     c = MIN(vcnt, NELMS(physbase_mtrrs));
     for (i = 0; i < c; i++) {
         rdmsr(physbase_mtrrs[i], &low, &high);
         base = ((long)high << 32) | low;
-        printf("BASE[%d]: %lx\n", i, base);
+        printf("BASE[%d]: %lx, ", i, base);
         rdmsr(physmask_mtrrs[i], &low, &high);
         mask = ((long)high << 32) | low;
         printf("MASK[%d]: %lx\n", i, mask);
