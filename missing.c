@@ -10,6 +10,17 @@ void *memset(void *p, int c, unsigned long len)
     return p;
 }
 
+void *memcpy(void *dst, void *src, unsigned long len)
+{
+    char *d = dst;
+    char *s = src;
+
+    for (int i = 0; i < len; i++)
+        *d++ = *s++;
+
+    return dst;
+}
+
 /*
     https://bochs.sourceforge.io/techspec/PORTS.LST
 

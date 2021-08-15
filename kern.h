@@ -32,6 +32,7 @@ extern int vsnprintf(char *str, int size, const char *fmt, va_list ap);
 extern int puts(char *str);
 extern int putc(int c);
 extern void *memset(void *p, int c, unsigned long len);
+extern void *memcpy(void *dst, void *src, unsigned long len);
 
 // IPI broadcast mode
 #define NO_BROCAST          0

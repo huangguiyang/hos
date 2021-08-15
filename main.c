@@ -7,11 +7,28 @@ static void lscpu(void)
 {
     struct cpuinfo info;
     int c;
+    char vendor[13];
 
     info.eax = 0;
     cpuid(&info);
     c = info.eax;
     printf("CPUID MAX: %d\n", c);
+
+    vendor[0] = info.ebx & 0xff;
+    vendor[1] = (info.ebx >> 8) & 0xff;
+    vendor[2] = (info.ebx >> 16) & 0xff;
+    vendor[3] = (info.ebx >> 24) & 0xff;
+    vendor[4] = info.edx & 0xff;
+    vendor[5] = (info.edx >> 8) & 0xff;
+    vendor[6] = (info.edx >> 16) & 0xff;
+    vendor[7] = (info.edx >> 24) & 0xff;
+    vendor[8] = info.ecx & 0xff;
+    vendor[9] = (info.ecx >> 8) & 0xff;
+    vendor[10] = (info.ecx >> 16) & 0xff;
+    vendor[11] = (info.ecx >> 24) & 0xff;
+    vendor[12] = 0;
+
+    printf("Vendor: %s\n", vendor);
 
     // 是否支持硬件多线程 (Hardware Multi-Threading)
     info.eax = 1;
@@ -137,7 +154,7 @@ int main()
     printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
 
     lscpu();
-    lsmtrr();
+    // lsmtrr();
 
     for (;;);
     return 0;
