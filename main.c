@@ -139,6 +139,23 @@ static void lsmtrr(void)
     }
 }
 
+static void lstopo(void)
+{
+    struct cpuinfo info;
+    int type = 1;
+    int s = 0;
+
+    while (type) {
+        info.eax = 0x0b;
+        info.ecx = s;
+        cpuid(&info);
+        type = (info.ecx >> 8) & 0xff;
+        s++;
+    }
+    s = info.ecx & 0xff;
+    printf("MAX VALID LEVEL: %d\n", s);
+}
+
 int main()
 {
     struct cpuinfo info;
@@ -155,6 +172,7 @@ int main()
 
     lscpu();
     // lsmtrr();
+    lstopo();
 
     for (;;);
     return 0;
