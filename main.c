@@ -42,7 +42,7 @@ static void lscpu(void)
     info.eax = 4;
     info.ecx = 0;
     cpuid(&info);
-    c = 1 + ((info.eax >> 16) & 0xff);
+    c = 1 + ((info.eax >> 26) & 0x3f);
     printf("Cores: %d\n", c);
 }
 
@@ -156,6 +156,26 @@ static void lstopo(void)
     printf("MAX VALID LEVEL: %d\n", s);
 }
 
+static struct rsdp *search_rsdp(void)
+{
+    char *beg = 0xe0000;
+    char *end = 0xfffff;
+    char sig[] = "RSD PTR ";
+    char c, *p;
+
+    for (; beg < end; beg += 16) {
+        if (!memcmp(beg, sig, 8)) {
+            // verify checksum
+            c = 0;
+            for (p = beg; p < beg + 20; p++)
+                c += *p;
+            if (c == 0)
+                return (struct rsdp *)beg;
+        }
+    }
+    return 0;
+}
+
 int main()
 {
     struct cpuinfo info;
@@ -170,9 +190,16 @@ int main()
     maxlineaddr = (info.eax >> 8) & 0xff;
     printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
 
-    lscpu();
+    // lscpu();
     // lsmtrr();
-    lstopo();
+    // lstopo();
+    struct rsdp *p = search_rsdp();
+    if (p) {
+        printf("RSDP = %p, ver = %d, OEM = ", p, p->revision);
+        for (int i = 0; i < 6; i++)
+            putc(p->oemid[i]);
+        printf(", RSDT = %p\n", p->rsdt_addr);
+    }
 
     for (;;);
     return 0;

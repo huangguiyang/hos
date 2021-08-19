@@ -21,6 +21,22 @@ void *memcpy(void *dst, void *src, unsigned long len)
     return dst;
 }
 
+int memcmp(void *a, void *b, unsigned long len)
+{
+    unsigned char *p1 = a;
+    unsigned char *p2 = b;
+    int n = 0, i;
+
+    for (i = 0; i < len; i++, p1++, p2++) {
+        if (*p1 < *p2)
+            return -1;
+        if (*p1 > *p2)
+            return 1;
+    }
+
+    return n;
+}
+
 /*
     https://bochs.sourceforge.io/techspec/PORTS.LST
 

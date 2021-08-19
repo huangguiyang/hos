@@ -33,6 +33,7 @@ extern int puts(char *str);
 extern int putc(int c);
 extern void *memset(void *p, int c, unsigned long len);
 extern void *memcpy(void *dst, void *src, unsigned long len);
+extern int memcmp(void *a, void *b, unsigned long len);
 
 // IPI broadcast mode
 #define NO_BROCAST          0
@@ -84,3 +85,16 @@ extern void wrmsr(int addr, int low, int high);
 #define IA32_MTRR_PHYSMASK8         0x211
 #define IA32_MTRR_PHYSBASE9         0x212
 #define IA32_MTRR_PHYSMASK9         0x213
+
+// RSDP structure
+struct rsdp {
+    char signature[8];              // "RSD PTR "
+    char checksum;
+    char oemid[6];
+    char revision;
+    int rsdt_addr;
+    int length;                     // only version 2
+    long xsdt_addr;                 // only version 2
+    char exchecksum;
+    char reserved[3];
+};
