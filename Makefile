@@ -25,7 +25,7 @@ CFLAGS=-Wall \
 	-fno-stack-protector
 LDFLAGS=-nostdlib
 OBFLAGS=-O binary -j .text -j .data -j .bss -j .rodata
-KERN_OBJS=start64.o main.o printf.o missing.o apic.o mp.o
+KERN_OBJS=start64.o main.o printf.o
 
 $T: build bootsect boot kern64
 	./build bootsect boot kern64 > $@

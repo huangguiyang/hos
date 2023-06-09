@@ -1,7 +1,7 @@
 A minimal kernel demo with following features:
 
     - x86_64
-    - APIC
+    - APIC (Advanced Programmable Interrupt Controller)
     - Multi-Processors
     - Self-contained (no other dependencies)
 

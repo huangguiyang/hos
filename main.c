@@ -2,6 +2,83 @@
 
 static int maxphyaddr = 36;
 static int maxlineaddr = 48;
+static int fix_mttrs[] = {
+    IA32_MTRR_FIX64K_00000,
+    IA32_MTRR_FIX16K_80000,
+    IA32_MTRR_FIX16K_A0000,
+    IA32_MTRR_FIX4K_C0000,
+    IA32_MTRR_FIX4K_C8000,
+    IA32_MTRR_FIX4K_D0000,
+    IA32_MTRR_FIX4K_D8000,
+    IA32_MTRR_FIX4K_E0000,
+    IA32_MTRR_FIX4K_E8000,
+    IA32_MTRR_FIX4K_F0000,
+    IA32_MTRR_FIX4K_F8000,
+};
+
+static int physbase_mtrrs[] = {
+    IA32_MTRR_PHYSBASE0,
+    IA32_MTRR_PHYSBASE1,
+    IA32_MTRR_PHYSBASE2,
+    IA32_MTRR_PHYSBASE3,
+    IA32_MTRR_PHYSBASE4,
+    IA32_MTRR_PHYSBASE5,
+    IA32_MTRR_PHYSBASE6,
+    IA32_MTRR_PHYSBASE7,
+    IA32_MTRR_PHYSBASE8,
+    IA32_MTRR_PHYSBASE9,
+};
+
+static int physmask_mtrrs[] = {
+    IA32_MTRR_PHYSMASK0,
+    IA32_MTRR_PHYSMASK1,
+    IA32_MTRR_PHYSMASK2,
+    IA32_MTRR_PHYSMASK3,
+    IA32_MTRR_PHYSMASK4,
+    IA32_MTRR_PHYSMASK5,
+    IA32_MTRR_PHYSMASK6,
+    IA32_MTRR_PHYSMASK7,
+    IA32_MTRR_PHYSMASK8,
+    IA32_MTRR_PHYSMASK9,
+};
+
+// 4K aligned entry
+static int start_ip;
+#define ICR_LOW32   0xFEE00300
+#define ICR_HIGH32  0xFEE00310
+
+static void lscpu(void);
+static void lsmtrr(void);
+static void lstopo(void);
+
+int main()
+{
+    struct cpuinfo info;
+
+    tty_init();
+    
+    printf("Hello, kern64!\n");
+
+    info.eax = 0x80000008;
+    cpuid(&info);
+    maxphyaddr = info.eax & 0xff;
+    maxlineaddr = (info.eax >> 8) & 0xff;
+    printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
+
+    lscpu();
+    lsmtrr();
+    lstopo();
+    struct rsdp *p = search_rsdp();
+    if (p) {
+        printf("RSDP = %p, ver = %d, OEM = ", p, p->revision);
+        for (int i = 0; i < 6; i++)
+            putc(p->oemid[i]);
+        printf(", RSDT = %p\n", p->rsdt_addr);
+    }
+
+    for (;;);
+    return 0;
+}
 
 static void lscpu(void)
 {
@@ -45,46 +122,6 @@ static void lscpu(void)
     c = 1 + ((info.eax >> 26) & 0x3f);
     printf("Cores: %d\n", c);
 }
-
-static int fix_mttrs[] = {
-    IA32_MTRR_FIX64K_00000,
-    IA32_MTRR_FIX16K_80000,
-    IA32_MTRR_FIX16K_A0000,
-    IA32_MTRR_FIX4K_C0000,
-    IA32_MTRR_FIX4K_C8000,
-    IA32_MTRR_FIX4K_D0000,
-    IA32_MTRR_FIX4K_D8000,
-    IA32_MTRR_FIX4K_E0000,
-    IA32_MTRR_FIX4K_E8000,
-    IA32_MTRR_FIX4K_F0000,
-    IA32_MTRR_FIX4K_F8000,
-};
-
-static int physbase_mtrrs[] = {
-    IA32_MTRR_PHYSBASE0,
-    IA32_MTRR_PHYSBASE1,
-    IA32_MTRR_PHYSBASE2,
-    IA32_MTRR_PHYSBASE3,
-    IA32_MTRR_PHYSBASE4,
-    IA32_MTRR_PHYSBASE5,
-    IA32_MTRR_PHYSBASE6,
-    IA32_MTRR_PHYSBASE7,
-    IA32_MTRR_PHYSBASE8,
-    IA32_MTRR_PHYSBASE9,
-};
-
-static int physmask_mtrrs[] = {
-    IA32_MTRR_PHYSMASK0,
-    IA32_MTRR_PHYSMASK1,
-    IA32_MTRR_PHYSMASK2,
-    IA32_MTRR_PHYSMASK3,
-    IA32_MTRR_PHYSMASK4,
-    IA32_MTRR_PHYSMASK5,
-    IA32_MTRR_PHYSMASK6,
-    IA32_MTRR_PHYSMASK7,
-    IA32_MTRR_PHYSMASK8,
-    IA32_MTRR_PHYSMASK9,
-};
 
 static void lsmtrr(void)
 {
@@ -176,31 +213,38 @@ static struct rsdp *search_rsdp(void)
     return 0;
 }
 
-int main()
+/*
+MultiProcessor Initialization
+*/
+
+void mp_init(void)
 {
-    struct cpuinfo info;
+    send_init_ipi(ALL_EXCLUDING_SELF, 1);
 
-    tty_init();
+    send_init_ipi(ALL_INCLUDING_SELF, 0);
+
+    send_startup_ipi(ALL_EXCLUDING_SELF, start_ip >> 12);
+    send_startup_ipi(ALL_EXCLUDING_SELF, start_ip >> 12);
+}
+
+void send_init_ipi(int mode, int asrt)
+{
+    int c;
     
-    printf("Hello, kern64!\n");
+    // INIT, edge, assert
+    c = (mode << 18) | (asrt << 14) | (5 << 8);
 
-    info.eax = 0x80000008;
-    cpuid(&info);
-    maxphyaddr = info.eax & 0xff;
-    maxlineaddr = (info.eax >> 8) & 0xff;
-    printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
+    *((int *)ICR_HIGH32) = 0;
+    *((int *)ICR_LOW32) = c;
+}
 
-    // lscpu();
-    // lsmtrr();
-    // lstopo();
-    struct rsdp *p = search_rsdp();
-    if (p) {
-        printf("RSDP = %p, ver = %d, OEM = ", p, p->revision);
-        for (int i = 0; i < 6; i++)
-            putc(p->oemid[i]);
-        printf(", RSDT = %p\n", p->rsdt_addr);
-    }
+void send_startup_ipi(int mode, int vector)
+{
+    int c;
 
-    for (;;);
-    return 0;
+    // STARTUP, edge
+    c = (mode << 18) | (6 << 8) | (vector & 0xff);
+
+    *((int *)ICR_HIGH32) = 0;
+    *((int *)ICR_LOW32) = c;
 }
