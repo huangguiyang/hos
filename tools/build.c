@@ -8,8 +8,8 @@
 static int sizes[] = {
     0,
     1024,       // boot sector
-    2048,       // boot
-    128*1024,   // kern64
+    4*1024,     // boot
+    128*1024,   // kernel
 };
 
 static void die(const char *fmt, ...)
@@ -43,10 +43,12 @@ int main(int argc, char *argv[])
             if (fwrite(buf, 1, c, stdout) != c)
                 die("write failed");
         fclose(fp);
-        if (i == 1 && j != 512)
-            die("%s must be 512 bytes", argv[i]);
-        else if (j > sizes[i])
+        if (j > sizes[i])
             die("%s is too big", argv[i]);
+        if (i == 1) {
+            if (j != 512)
+                die("%s must be 512 bytes", argv[i]);
+        }
 
         fprintf(stderr, "%s size %d\n", argv[i], j);
 

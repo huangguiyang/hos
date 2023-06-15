@@ -2,6 +2,8 @@
 
 .code16
 
+.set DEST_SEG, 0x9600
+
 .section .text
 .globl _start
 _start:
@@ -19,23 +21,23 @@ label_5A:
     # DL = 磁盘号（00H-7FH 软盘，80H-FFH 硬盘）
 load:
     xor %bx, %bx
-    mov $0x9600, %ax        # 600K
+    mov $DEST_SEG, %ax
     mov %ax, %es            # destination es:bx
-    movb $0x02, %ah         # read sectors
-    movb $0x04, %al         # number of sectors
+    movb $0x02, %ah         # read sectors command
+    movb nseg, %al          # number of sectors
     movb $0, %ch            # cylinder 0
-    movb $0x03, %cl         # sector number
+    movb seg_beg, %cl       # sector number (count from 1)
     mov $0, %dx             # head 0, drive 0
     int $0x13
     jnc load_ok             # jump if CF=0 (successful)
 
-    mov $0, %ax             # 重置磁盘
+    mov $0, %ax             # reset disk
     mov $0, %dx
     int $0x13
     jmp load
 
 load_ok:
-    ljmp $0x9600, $0
+    ljmp $DEST_SEG, $0       # jump to boot
 
 .org 426, 0
 boot_tab:
@@ -44,6 +46,10 @@ boot_tab:
     # [0]nsectors, [1]cylinder, [2]head, [3]sector
     # ...
     # 0,0,0,0
+seg_beg:
+    .byte 0x03
+nseg:
+    .byte 0x08
 
 .org 446, 0
     # partition table (64 bytes)
