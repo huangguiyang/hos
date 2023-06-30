@@ -1,15 +1,16 @@
-# loaded at 0x10000 (64K)
+# loaded at 0x1000:0x0000 (64K)
 
 .code64
 
 .set STACK_TOP, 0x9FFF0     # about 640K
 
 .section .text
-.globl _start, hlt, sti, cpuid
+.globl _start
+.globl hlt, sti, cpuid
 .globl inb, inw, indw, outb, outw, outdw
 .globl rdmsr, wrmsr
 _start:
-    movl $0x10, %eax            # 数据段选择符
+    movl $0x20, %eax            # 数据段选择符 (index=4)
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
@@ -17,6 +18,8 @@ _start:
 
     lidtq idt_desc
     lgdtq gdt_desc
+
+     # 由于加载了新的 GDT，所以重新设置下段寄存器
 
     movl $0x10, %eax
     mov %ax, %ds
@@ -26,7 +29,6 @@ _start:
     mov %ax, %ss
     lss stack_top, %esp
 
-    push $hlt
     call main
 hlt:
     hlt

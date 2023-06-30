@@ -20,6 +20,10 @@ label_5A:
     # DH = head
     # DL = 磁盘号（00H-7FH 软盘，80H-FFH 硬盘）
 load:
+    mov %cs, %ax
+    mov %ax, %ds
+    mov %ax, %es
+
     xor %bx, %bx
     mov $DEST_SEG, %ax
     mov %ax, %es            # destination es:bx
@@ -49,7 +53,7 @@ boot_tab:
 seg_beg:
     .byte 0x03
 nseg:
-    .byte 0x08
+    .byte 0x02
 
 .org 446, 0
     # partition table (64 bytes)

@@ -1,6 +1,8 @@
-# loaded at 0x1000:0x0000 (64K)
+# loaded at 0x0100:0x0000 (4K)
 
 .code16
+
+.set KERN16_OFF, 0x1000
 
 .section .text
 .globl _start
@@ -22,45 +24,61 @@ _start:
     lmsw %ax                    # CR0.PE=1 开启保护模式
 
     # 紧接一个 far jmp
-    ljmp $0x08, $_start32       # 跳到保护模式程序 (Index = 1, GDT, CPL 0)
+    ljmp $0x08, $_start32       # 跳到保护模式程序 (Index = 1, TI=0(GDT), RPL=00)
 
 
-# IA-32的段描述符8字节，其中4个字节是段基址，20位段限长
-# 段的长度除了段限长，还要乘以粒度（1字节或4K）
-# 因此，段长度有1MB或4GB两种。
+# 段描述符
 
 # 全局描述符表
 .align 8
 gdt:
-    .word 0,0,0,0       # 第一个必须为空
+    # [0]第一个必须为空
+    .word 0,0,0,0
+
+    # [1]代码段, base=0, limit=FFFFF
+    # G=1(4K), D/B=1, L=0, S=1, Type=A(Code,RX), DPL=0, P=1
     
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9A00        # 代码段，rx权限
-    .word 0x00CF        # 粒度-4K，32位操作数
+    .word 0xFFFF
+    .word 0x0000
+    .word 0x9A00
+    .word 0x00CF
 
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9200        # 数据段，rw权限
-    .word 0x00CF        # 粒度-4K，32位操作数
+    # [2]数据段, base=0, limit=FFFFF
+    # G=1(4K), D/B=1, L=0, S=1, Type=2(Data,RW), DPL=0, P=1
 
-    .word 0xFFFF        # limit
-    .word 0x0000        # 基址
-    .word 0x9A00        # 代码段，rx权限
-    .word 0x00AF        # 粒度-4K，long mode
+    .word 0xFFFF
+    .word 0x0000
+    .word 0x9200
+    .word 0x00CF
+
+    # [3]64位代码段, base=0, limit=FFFFF
+    # G=1(4K), D/B=0, L=1, S=1, Type=A(Code,RX), DPL=0, P=1
+
+    .word 0xFFFF
+    .word 0x0000
+    .word 0x9A00
+    .word 0x00AF
+
+    # [4]数据段, base=0, limit=FFFFF
+    # G=1(4K), D/B=1, L=0, S=1, Type=2(Data,RW), DPL=0, P=1
+
+    .word 0xFFFF
+    .word 0x0000
+    .word 0x9200
+    .word 0x00CF
 
 # GDT的描述符，用来加载到GDTR
 # Pseudo-Descriptor Format
 # 0~15: Limit, 16~47: 32-bit base address
 .word 0
 gdt_desc:
-    .word 4*8-1         # 限长
-    .word gdt,0         # gdt地址
+    .word 5*8-1             # 限长
+    .long gdt               # gdt地址
 
 .word 0
 idt_desc:
     .word 0
-    .word 0,0
+    .long 0
 
 #
 # 32位保护模式
@@ -72,21 +90,19 @@ idt_desc:
 .set PAGE_DIR, 0x2000       # 8K
 .set PAGE_DIR64, 0x100000   # 1M
 
+.align 16
 _start32:
-    mov $0x10, %eax         # 数据段选择子
+    mov $0x10, %eax         # 数据段选择符 (index=2)
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %fs
     mov %ax, %gs
     lss stack_top, %esp
 
-    push $paging_ok
-    jmp setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
-paging_ok:
-    push $enter64_ok
-    jmp enter64
-enter64_ok:
-    ljmp $0x18, $0x10000        # 跳到64K处，终于进入64位模式了
+    call setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
+    call enter64
+
+    ljmp $0x18, $0x10000        # 终于进入64位模式了 (index=3)
 
 stack_top:
     .long STACK_TOP             # 32-bits offset

@@ -50,6 +50,7 @@ static int start_ip;
 static void lscpu(void);
 static void lsmtrr(void);
 static void lstopo(void);
+static struct rsdp *search_rsdp(void);
 
 int main()
 {

@@ -8,8 +8,9 @@
 static int sizes[] = {
     0,
     1024,       // boot sector
-    4*1024,     // boot
-    128*1024,   // kernel
+    1024,       // boot
+    4*1024,     // kern16
+    124*1024,   // kern64
 };
 
 static void die(const char *fmt, ...)
@@ -24,7 +25,7 @@ static void die(const char *fmt, ...)
 
 static void usage(void)
 {
-    die("Usage: build bootsect boot kern64 > image");
+    die("Usage: build bootsect boot kern16 kern64 > image");
 }
 
 int main(int argc, char *argv[])
@@ -33,10 +34,10 @@ int main(int argc, char *argv[])
     char buf[1024];
     int i, j, c;
 
-    if (argc < 4)
+    if (argc < 5)
         usage();
 
-    for (i = 1; i < 4; i++) {
+    for (i = 1; i < 5; i++) {
         if (!(fp = fopen(argv[i], "rb")))
             die("can't open file %s", argv[i]);
         for (j = 0; (c = fread(buf, 1, sizeof buf, fp)) > 0; j += c)

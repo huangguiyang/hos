@@ -2,7 +2,7 @@
 
 .code16
 
-.set KSEC, 0x0B
+.set KSEC, 0x0C
 .set BEG_SEG, 0x1000
 .set END_SEG, 0x9000
 
@@ -15,53 +15,33 @@ _start:
     mov %ax, %ss
     mov $0x4FF0, %sp            # about 20K
 
-    call load                   # load kernel to 0x1000:0x0000 (64K)
+    call load16                 # load kern16 to 0x0100:0x0000 (4K)
+
+    call load64                 # load kern64 to 0x1000:0x0000 (64K)
 
     call enable_a20             # enable A20 Line
 
-    ljmp $0x1000, $0            # 跳到内核处 0x1000:0x0000
+    ljmp $0, $0x1000            # jump to kern16
 
-enable_a20:
-    # 开启A20地址线
-    # 通过8042键盘控制器引脚的方式
-    call wait_8042
-    movb $0xad, %al     # 禁止第一个PS/2端口
-    outb %al, $0x64
 
-    call wait_8042
-    movb $0xd0, %al     # 发命令：准备读取输出端口
-    outb %al, $0x64
+load16:
+    xor %bx, %bx
+    mov $0x0100, %ax
+    mov %ax, %es            # destination es:bx
+    movb $0x02, %ah         # read sectors command
+    movb $8, %al            # number of sectors
+    movb $0, %ch            # cylinder 0
+    movb $5, %cl            # sector number (count from 1)
+    mov $0, %dx             # head 0, drive 0
+    int $0x13
+    jnc load16_ok           # jump if CF=0 (successful)
 
-    call wait_8042_2
-    inb $0x60, %al      # 读取数据端口的数据
-    push %ax            # 保存数据
+    mov $0, %ax             # reset disk
+    mov $0, %dx
+    int $0x13
+    jmp load16
 
-    call wait_8042
-    movb $0xd1, %al     # 发命令：准备写输出端口
-    outb %al, $0x64
-
-    call wait_8042
-    pop %ax
-    orb $0x02, %al      # 开启A20比特位
-    outb %al, $0x60
-
-    call wait_8042
-    movb $0xae, %al     # 开启第一个PS/2端口（上面给关闭了）
-    outb %al, $0x64
-
-    call wait_8042
-    ret
-
-wait_8042:
-    inb $0x64, %al      # 读取8042状态寄存器到al
-    testb $0x02, %al    # 测试输入缓冲状态（0-空，1-满）
-    jnz wait_8042       # 如果满，继续测试
-    ret
-
-wait_8042_2:
-    inb $0x64, %al
-    testb $0x01, %al    # 测试输出缓冲状态（0-空，1-满）
-    jz wait_8042_2      # 如果空，继续测试
+load16_ok:
     ret
 
     # 大文件跨磁道、磁头，需要处理
@@ -89,11 +69,11 @@ wait_8042_2:
     # DH: 最大磁头数
     # DL: 磁盘个数
     # ES:DI: 磁盘参数表位置
-load:
+load64:
     movb $0x08, %ah         # 读取磁盘参数
     movb $0x00, %dl         # drive 0
     int $0x13
-    jc load                 # 失败就重试 CF=1
+    jc load64               # 失败就重试 CF=1
     movb $0, %ch            # 忽略，磁道数下面不会用到
     mov %cx, nsector        # 软盘磁道数不会超过255，CL寄存器bit 6:7肯定是0
     mov $BEG_SEG, %ax
@@ -191,12 +171,55 @@ read_fail:
 die:
     hlt
 
+enable_a20:
+    # 开启A20地址线
+    # 通过8042键盘控制器引脚的方式
+    call wait_8042
+    movb $0xad, %al     # 禁止第一个PS/2端口
+    outb %al, $0x64
+
+    call wait_8042
+    movb $0xd0, %al     # 发命令：准备读取输出端口
+    outb %al, $0x64
+
+    call wait_8042_2
+    inb $0x60, %al      # 读取数据端口的数据
+    push %ax            # 保存数据
+
+    call wait_8042
+    movb $0xd1, %al     # 发命令：准备写输出端口
+    outb %al, $0x64
+
+    call wait_8042
+    pop %ax
+    orb $0x02, %al      # 开启A20比特位
+    outb %al, $0x60
+
+    call wait_8042
+    movb $0xae, %al     # 开启第一个PS/2端口（上面给关闭了）
+    outb %al, $0x64
+
+    call wait_8042
+    ret
+
+wait_8042:
+    inb $0x64, %al      # 读取8042状态寄存器到al
+    testb $0x02, %al    # 测试输入缓冲状态（0-空，1-满）
+    jnz wait_8042       # 如果满，继续测试
+    ret
+
+wait_8042_2:
+    inb $0x64, %al
+    testb $0x01, %al    # 测试输出缓冲状态（0-空，1-满）
+    jz wait_8042_2      # 如果空，继续测试
+    ret
+
 .align 2
 head:
     .word 0                 # 当前磁头号
 
 sector:
-    .word KSEC-1            # 当前磁道已读扇区数
+    .word KSEC              # 当前磁道已读扇区数
 
 track:
     .word 0                 # 当前磁道号
