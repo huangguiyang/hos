@@ -50,7 +50,14 @@ static int start_ip;
 static void lscpu(void);
 static void lsmtrr(void);
 static void lstopo(void);
+static void lsrsdp(void);
 static struct rsdp *search_rsdp(void);
+static void print_rsdp(struct rsdp *p);
+static struct acpi_sdt_hdr *search_rsdt(struct rsdp *p);
+static void print_sdt(struct acpi_sdt_hdr *p);
+static int verify_sdt_checksum(struct acpi_sdt_hdr *p);
+static struct madt_hdr *search_sdt(int magic);
+static struct madt_hdr *search_madt(void);
 
 int main()
 {
@@ -66,16 +73,12 @@ int main()
     maxlineaddr = (info.eax >> 8) & 0xff;
     printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
 
-    lscpu();
-    lsmtrr();
-    lstopo();
-    struct rsdp *p = search_rsdp();
-    if (p) {
-        printf("RSDP = %p, ver = %d, OEM = ", p, p->revision);
-        for (int i = 0; i < 6; i++)
-            putc(p->oemid[i]);
-        printf(", RSDT = %p\n", p->rsdt_addr);
-    }
+    // lscpu();
+    // lsmtrr();
+    // lstopo();
+    // lsrsdp();
+    struct madt_hdr *madt = search_madt();
+    printf("MADT=%p\n", madt);
 
     for (;;);
     return 0;
@@ -194,6 +197,27 @@ static void lstopo(void)
     printf("MAX VALID LEVEL: %d\n", s);
 }
 
+static void lsrsdp(void)
+{
+    struct rsdp *rsdp = search_rsdp();
+    if (rsdp) {
+        print_rsdp(rsdp);
+        struct acpi_sdt_hdr *rsdt = search_rsdt(rsdp);
+        if (rsdt) {
+            print_sdt(rsdt);
+            int nsdt = (rsdt->length - sizeof(*rsdt)) / 4;
+            unsigned int *psdt = rsdt + 1;
+            for (int i = 0; i < nsdt; i++) {
+                struct acpi_sdt_hdr *sdt = (struct acpi_sdt_hdr *)psdt[i];
+                if (verify_sdt_checksum(sdt) == 0) {
+                    printf("[%d] ", i);
+                    print_sdt(sdt);
+                }
+            }
+        }
+    }
+}
+
 static struct rsdp *search_rsdp(void)
 {
     char *beg = 0xe0000;
@@ -212,6 +236,72 @@ static struct rsdp *search_rsdp(void)
         }
     }
     return 0;
+}
+
+static void print_rsdp(struct rsdp *p)
+{
+    if (p == NULL) return;
+
+    printf("RSDP=%p, ver=%d, OEM=", p, p->revision);
+    for (int i = 0; i < 6; i++)
+        putc(p->oem_id[i]);
+    printf(", RSDT=%p\n", p->rsdt_addr);
+}
+
+// checksum = 0 is ok
+static int verify_sdt_checksum(struct acpi_sdt_hdr *p)
+{
+    unsigned char sum = 0;
+    for (int i = 0; i < p->length; i++)
+        sum += ((char *)p)[i];
+    return sum;
+}
+
+static struct acpi_sdt_hdr *search_rsdt(struct rsdp *p)
+{
+    if (p == NULL) return NULL;
+
+    struct acpi_sdt_hdr *hdr = p->rsdt_addr;
+    return verify_sdt_checksum(hdr) == 0 ? hdr : NULL;
+}
+
+static void print_sdt(struct acpi_sdt_hdr *p)
+{
+    if (p == NULL) return;
+
+    for (int i = 0; i < 4; i++)
+        putc(p->signature[i]);
+    printf("=%p, OEM=", p);
+    for (int i = 0; i < 6; i++)
+        putc(p->oem_id[i]);
+    printf("\n");
+}
+
+static struct madt_hdr *search_sdt(int magic)
+{
+    struct rsdp *rsdp = search_rsdp();
+    if (rsdp == NULL)
+        return NULL;
+
+    struct acpi_sdt_hdr *rsdt = search_rsdt(rsdp);
+    if (rsdt == NULL)
+        return NULL;
+
+    int nsdt = (rsdt->length - sizeof(*rsdt)) / 4;
+    unsigned int *psdt = rsdt + 1;
+    for (int i = 0; i < nsdt; i++) {
+        struct acpi_sdt_hdr *sdt = (struct acpi_sdt_hdr *)psdt[i];
+        if (verify_sdt_checksum(sdt) == 0) {
+            if (*(int *)sdt->signature == magic)
+                return sdt;
+        }
+    }
+    return NULL;
+}
+
+static struct madt_hdr *search_madt(void)
+{
+    return search_sdt(APIC_MAGIC);
 }
 
 /*

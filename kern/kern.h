@@ -4,6 +4,7 @@
 #define va_end __builtin_va_end
 #define va_arg __builtin_va_arg
 
+#define NULL ((void *)0)
 #define MIN(a, b)   ((a) <= (b) ? (a) : (b))
 #define MAX(a, b)   ((a) >= (b) ? (a) : (b))
 #define NELMS(a)    (sizeof(a)/sizeof((a)[0]))
@@ -86,15 +87,45 @@ extern void wrmsr(int addr, int low, int high);
 #define IA32_MTRR_PHYSBASE9         0x212
 #define IA32_MTRR_PHYSMASK9         0x213
 
-// RSDP structure
+// RSDP (Root System Description Pointer) structure
 struct rsdp {
     char signature[8];              // "RSD PTR "
-    char checksum;
-    char oemid[6];
-    char revision;
+    unsigned char checksum;
+    char oem_id[6];
+    unsigned char revision;
     int rsdt_addr;
-    int length;                     // only version 2
-    long xsdt_addr;                 // only version 2
+
+    // version 2
+    int length;
+    long xsdt_addr;;
     char exchecksum;
     char reserved[3];
 };
+
+// RSDT (Root System Description Table) structure
+struct acpi_sdt_hdr {
+    char signature[4];
+    unsigned int length;
+    unsigned char revision;
+    unsigned char checksum;
+    char oem_id[6];
+    char oem_table_id[8];
+    unsigned int oem_revision;
+    unsigned int creator_id;
+    unsigned int creator_revision;
+};
+
+// MADT (Multiple APIC Description Table)
+struct madt_hdr {
+    struct acpi_sdt_hdr hdr;
+    unsigned int local_apic_addr;
+    unsigned int flags;
+};
+
+struct madt_entry_hdr {
+    unsigned char type;
+    unsigned char length;
+};
+
+#define SIG_MAGIC(a,b,c,d)  ((d << 24 ) | (c << 16) | (b << 8) | a)
+#define APIC_MAGIC  SIG_MAGIC('A','P','I','C')

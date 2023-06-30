@@ -1,5 +1,7 @@
 # loaded at 0x0100:0x0000 (4K)
 
+# 多核CPU入口 (根据 Intel 手册说明，地址必须4K倍数)
+
 .code16
 
 .set KERN16_OFF, 0x1000
