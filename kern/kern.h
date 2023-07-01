@@ -47,12 +47,6 @@ extern void rdmsr(int addr, int *low, int *high);
 extern void wrmsr(int addr, int low, int high);
 extern void set_cr3(void *addr);
 
-/*
- is it bootstrap processor?
- 通过读取 IA32_APIC_BASE MSR BSP 标志位(bit 8)来确定
- */
-extern int is_bsp(void);
-
 #define IA32_MTRRCAP                0xfe
 #define IA32_MTRR_DEF_TYPE          0x2ff
 #define IA32_MTRR_FIX64K_00000      0x250
@@ -144,6 +138,40 @@ struct madt_entry_hdr {
 #define LAPIC_VERSION_REG       0x30
 #define LAPIC_ICR_LOW32         0x300
 #define LAPIC_ICR_HIGH32        0x310
+
+// IPI destination
+#define ICR_DESTINATION_SHIFT   24
+
+// IPI delivery mode
+#define ICR_FIXED               (0 << 8)
+#define ICR_LOWEST_PRIORITY     (1 << 8)
+#define ICR_SMI                 (2 << 8)
+#define ICR_NMI                 (4 << 8)
+#define ICR_INIT                (5 << 8)
+#define ICR_STARTUP             (6 << 8)
+// 3,7 are reserved
+
+// IPI destination mode
+#define ICR_PHYSICAL            (0 << 11)
+#define ICR_LOGICAL             (1 << 11)
+
+// IPI delivery status
+#define ICR_IDLE                (0 << 12)
+#define ICR_PENDING             (1 << 12)
+
+// IPI Level
+#define ICR_DEASSERT            (0 << 14)
+#define ICR_ASSERT              (1 << 14)
+
+// IPI trigger mode
+#define ICR_EDGE                (0 << 15)
+#define ICR_LEVEL               (1 << 15)
+
+// IPI destination shorthand
+#define ICR_NO_SHORTHAND        (0 << 18)
+#define ICR_SELF                (1 << 18)
+#define ICR_ALL_INCLUDING_SELF  (2 << 18)
+#define ICR_ALL_EXCLUDING_SELF  (3 << 18)
 
 struct cpu {
     unsigned char acpi_procssor_id;

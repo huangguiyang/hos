@@ -70,7 +70,11 @@ static void *alloc_fixed_page(void *p);
 static void *free_page(void *p);
 static void mmap(void *p, int flags);
 static void spin_wait(int ms);
+static int is_bsp(void);
+static void enable_apic(void);
+static void disable_apic(void);
 static void *get_lapic_base_addr(void);
+static void set_lapic_base_addr(void *p);
 static unsigned int read_lapic_reg(void *base, int offset);
 static void write_lapic_reg(void *base, int offset, int value);
 static unsigned int get_lapic_id(void *base);
@@ -141,6 +145,33 @@ int main()
     return 0;
 }
 
+static int is_bsp(void)
+{
+    int low = 0, high = 0;
+    rdmsr(IA32_APIC_BASE, &low, &high);
+    return low & (1 << 8); // BSP flag is at bit8
+}
+
+static void enable_apic(void)
+{
+    unsigned int low = 0, high = 0;
+
+    rdmsr(IA32_APIC_BASE, &low, &high);
+
+    low |= 1 << 11;
+    wrmsr(IA32_APIC_BASE, low, high);
+}
+
+static void disable_apic(void)
+{
+    unsigned int low = 0, high = 0;
+
+    rdmsr(IA32_APIC_BASE, &low, &high);
+
+    low &= ~(1 << 11);
+    wrmsr(IA32_APIC_BASE, low, high);
+}
+
 static void *get_lapic_base_addr(void)
 {
     unsigned int low = 0;
@@ -148,6 +179,16 @@ static void *get_lapic_base_addr(void)
     rdmsr(IA32_APIC_BASE, &low, NULL);
 
     return (void *)(low & ~0xFFF);
+}
+
+static void set_lapic_base_addr(void *p)
+{
+    unsigned int low = 0, high = 0;
+
+    rdmsr(IA32_APIC_BASE, &low, &high);
+    low = (low & 0xFFF) | ((unsigned int)p & ~0xFFF);
+
+    wrmsr(IA32_APIC_BASE, low, high);
 }
 
 // !!! MUST be unsigned!
@@ -184,6 +225,25 @@ void ap_main()
     int local_apic_id = get_lapic_id(p);
     int local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
+
+    /*
+        QEMU 似乎是不支持重新映射 Local APIC Address
+
+        https://lists.nongnu.org/archive/html/qemu-devel/2012-05/msg03373.html
+    */
+
+    // disable_apic();
+    // void *p1 = alloc_page();
+    // mmap(p1, PAGING_W | PAGING_PCD);
+    // printf("alloc page: %p\n", p1);
+    // set_lapic_base_addr(p1);
+    // enable_apic();
+
+    // p = get_lapic_base_addr();
+    // printf("p=%p\n", p);
+    // local_apic_id = get_lapic_id(p);
+    // local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
+    // printf("*Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
 
     for (;;) pause();
 }
@@ -415,79 +475,41 @@ static struct madt_hdr *search_madt(void)
     IPI Message
 */
 
-static int is_icr_idle(void *cur_lapic_base)
+static void send_init_ipi_to_apic(void *lapic_base, int apic_id)
 {
-    int low = read_lapic_reg(cur_lapic_base, LAPIC_ICR_LOW32);
-    return ((low >> 12) & 1) == 0;
+    write_lapic_reg(lapic_base, LAPIC_ICR_HIGH32, (apic_id & 0xFF) << ICR_DESTINATION_SHIFT);
+    write_lapic_reg(lapic_base, LAPIC_ICR_LOW32, 
+                    ICR_INIT | ICR_PHYSICAL | ICR_DEASSERT | ICR_EDGE | ICR_NO_SHORTHAND);
 }
 
-static void send_ipi(void *cur_lapic_base,
-                     int vector, 
-                     int delivery_mode,
-                     int dest_mode,
-                     int level,
-                     int trigger_mode,
-                     int dest_shorthand,
-                     int destination)
+static void send_startup_ipi_to_apic(void *lapic_base, int apic_id, int vector)
 {
-    int low, high;
-
-    high = (destination & 0xFF) << 24;
-    low = (vector & 0xFF) |
-          ((delivery_mode & 7) << 8) |
-          ((dest_mode & 1) << 11) |
-          ((level & 1) << 14) |
-          ((trigger_mode & 1) << 15) |
-          ((dest_shorthand & 3) << 18);
-
-    write_lapic_reg(cur_lapic_base, LAPIC_ICR_HIGH32, high);
-    write_lapic_reg(cur_lapic_base, LAPIC_ICR_LOW32, low);
-}
-
-static void send_init_ipi_to_apic(void *cur_lapic_base, int apic_id)
-{
-    send_ipi(cur_lapic_base,
-             0,
-             5,     // INIT
-             0,     // physical
-             0,     // level: de-assert
-             0,     // edge
-             NO_SHORTHAND,
-             apic_id);  // destination
-}
-
-static void send_startup_ipi_to_apic(void *cur_lapic_base, int apic_id, int vector)
-{
-    send_ipi(cur_lapic_base,
-             vector,
-             6,     // STARTUP
-             0,     // physical
-             1,     // level: assert
-             0,     // edge
-             NO_SHORTHAND,
-             apic_id);  // destination
+    write_lapic_reg(lapic_base, LAPIC_ICR_HIGH32, (apic_id & 0xFF) << ICR_DESTINATION_SHIFT);
+    write_lapic_reg(lapic_base, LAPIC_ICR_LOW32,  (vector & 0xFF) |
+                    ICR_STARTUP | ICR_PHYSICAL | ICR_ASSERT | ICR_EDGE | ICR_NO_SHORTHAND);
 }
 
 /*
-    MultiProcessor Initialization
+    Send INIT-SIPI-SIPI sequence
 */
 
-static void mp_init(void *cur_lapic_base)
+static void mp_init(void *lapic_base)
 {
     printf("Initialize other cores...\n");
-    send_init_ipi_to_apic(cur_lapic_base, 1);
+    send_init_ipi_to_apic(lapic_base, 1);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
     spin_wait(10);
-    send_startup_ipi_to_apic(cur_lapic_base, 1, start_ip >> 12);
+    
+    send_startup_ipi_to_apic(lapic_base, 1, start_ip >> 12);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
     spin_wait(200);
-    send_startup_ipi_to_apic(cur_lapic_base, 1, start_ip >> 12);
+    
+    send_startup_ipi_to_apic(lapic_base, 1, start_ip >> 12);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
     spin_wait(200);
-}
-
-int is_bsp(void)
-{
-    int low = 0, high = 0;
-    rdmsr(IA32_APIC_BASE, &low, &high);
-    return (low >> 8) & 1; // BSP flag is at bit8
 }
 
 static void *free_page(void *p)
