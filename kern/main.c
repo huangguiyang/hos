@@ -230,6 +230,16 @@ void ap_main()
         QEMU 似乎是不支持重新映射 Local APIC Address
 
         https://lists.nongnu.org/archive/html/qemu-devel/2012-05/msg03373.html
+
+        [Intel Manual]
+        For P6 family, Pentium 4, and Intel Xeon processors, the APIC handles 
+         all memory accesses to addresses within the 4-KByte APIC register space 
+         internally and no external bus cycles are produced.
+
+        [Conclusion]
+        We don't need to change the base address, because each processor
+         will only write to its own APIC even if all of them use the same base address.
+
     */
 
     // disable_apic();
