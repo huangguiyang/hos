@@ -138,11 +138,12 @@ struct madt_entry_hdr {
 可以通过修改 IA32_APIC_BASE MSR 来修改这个地址
 */ 
 
-#define LOCAL_APIC_ADDR                   0xFEE00000
-#define LOCAL_APIC_ID_REG(base)           ((unsigned int)(base) + 0x20)
-#define LOCAL_APIC_VERSION_REG(base)      ((unsigned int)(base) + 0x30)
-#define LOCAL_APIC_ICR_LOW32(base)        ((unsigned int)(base) + 0x300)
-#define LOCAL_APIC_ICR_HIGH32(base)       ((unsigned int)(base) + 0x310)
+#define LAPIC_BASE_ADDR         0xFEE00000
+// Offsets relative to base address
+#define LAPIC_ID_REG            0x20
+#define LAPIC_VERSION_REG       0x30
+#define LAPIC_ICR_LOW32         0x300
+#define LAPIC_ICR_HIGH32        0x310
 
 struct cpu {
     unsigned char acpi_procssor_id;

@@ -64,12 +64,16 @@ static struct madt_hdr *search_sdt(struct acpi_sdt_hdr *rsdt, int magic);
 static struct madt_hdr *search_madt(void);
 static void paging_init(void);
 static void interrupts_init(void);
-static void mp_init(void);
+static void mp_init(void *cur_lapic_base);
 static void *alloc_page(void);
 static void *alloc_fixed_page(void *p);
 static void *free_page(void *p);
 static void mmap(void *p, int flags);
 static void spin_wait(int ms);
+static void *get_lapic_base_addr(void);
+static unsigned int read_lapic_reg(void *base, int offset);
+static void write_lapic_reg(void *base, int offset, int value);
+static unsigned int get_lapic_id(void *base);
 
 int main()
 {
@@ -99,7 +103,7 @@ int main()
     struct madt_hdr *madt = search_madt();
     if (madt) {
         printf("MADT=%p, local_apic_addr=%p, flags=%d\n", madt, (void *)madt->local_apic_addr, madt->flags);
-        if (madt->local_apic_addr != LOCAL_APIC_ADDR)
+        if (madt->local_apic_addr != LAPIC_BASE_ADDR)
             printf("unexpected local apic address: %p\n", (void *)madt->local_apic_addr);
         unsigned int e = madt + 1;
         while (e < (unsigned int)madt + madt->hdr.length) {
@@ -124,20 +128,48 @@ int main()
         }
     }
     printf("%d APIC(s) found.\n", ncpu);
-    mmap(madt->local_apic_addr, PAGING_W | PAGING_PCD);
-    int local_apic_id = *(int *)LOCAL_APIC_ID_REG(LOCAL_APIC_ADDR);
-    int local_apic_ver = *(int *)LOCAL_APIC_VERSION_REG(LOCAL_APIC_ADDR);
+    
+    void *p = get_lapic_base_addr();
+    mmap(p, PAGING_W | PAGING_PCD);
+    int local_apic_id = get_lapic_id(p);
+    int local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
 
-    mp_init();
+    mp_init(p);
 
     for (;;) pause();
     return 0;
 }
 
+static void *get_lapic_base_addr(void)
+{
+    unsigned int low = 0;
+
+    rdmsr(IA32_APIC_BASE, &low, NULL);
+
+    return (void *)(low & ~0xFFF);
+}
+
+// !!! MUST be unsigned!
+
+static unsigned int read_lapic_reg(void *base, int offset)
+{
+    return *(int *)((unsigned int)base + offset);
+}
+
+static void write_lapic_reg(void *base, int offset, int value)
+{
+    *(int *)((unsigned int)base + offset) = value;
+}
+
+static unsigned int get_lapic_id(void *base)
+{
+    return read_lapic_reg(base, LAPIC_ID_REG) >> 24;
+}
+
 void ap_main()
 {
-    printf("Hello, kern64! %s\n", is_bsp() ? "fatal error" : "I'm an AP.");
+    printf("\nHello, kern64! %s\n", is_bsp() ? "fatal error" : "I'm an AP.");
 
     unsigned int low, high;
     unsigned long v;
@@ -148,16 +180,10 @@ void ap_main()
     v = ((unsigned long)high) << 32 | low;
     printf("IA32_APIC_BASE: %lx\n", v);
 
-    unsigned int local_apic_base = low & ~0xFFF;
-    int local_apic_id = *(int *)LOCAL_APIC_ID_REG(local_apic_base);
-    int local_apic_ver = *(int *)LOCAL_APIC_VERSION_REG(local_apic_base);
+    void *p = get_lapic_base_addr();
+    int local_apic_id = get_lapic_id(p);
+    int local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
-
-    struct cpuinfo info;
-    info.eax = 1;
-    cpuid(&info);
-    int l_apic_id = ((unsigned int)info.ebx) >> 24;
-    printf("l_apic_id = %d\n", l_apic_id);
 
     for (;;) pause();
 }
@@ -389,13 +415,14 @@ static struct madt_hdr *search_madt(void)
     IPI Message
 */
 
-static int is_icr_idle(void)
+static int is_icr_idle(void *cur_lapic_base)
 {
-    int low = *((int *)LOCAL_APIC_ICR_LOW32(LOCAL_APIC_ADDR));
+    int low = read_lapic_reg(cur_lapic_base, LAPIC_ICR_LOW32);
     return ((low >> 12) & 1) == 0;
 }
 
-static void send_ipi(int vector, 
+static void send_ipi(void *cur_lapic_base,
+                     int vector, 
                      int delivery_mode,
                      int dest_mode,
                      int level,
@@ -413,13 +440,14 @@ static void send_ipi(int vector,
           ((trigger_mode & 1) << 15) |
           ((dest_shorthand & 3) << 18);
 
-    *((int *)LOCAL_APIC_ICR_HIGH32(LOCAL_APIC_ADDR)) = high;
-    *((int *)LOCAL_APIC_ICR_LOW32(LOCAL_APIC_ADDR)) = low;
+    write_lapic_reg(cur_lapic_base, LAPIC_ICR_HIGH32, high);
+    write_lapic_reg(cur_lapic_base, LAPIC_ICR_LOW32, low);
 }
 
-static void send_init_ipi_to_apic(int apic_id)
+static void send_init_ipi_to_apic(void *cur_lapic_base, int apic_id)
 {
-    send_ipi(0,
+    send_ipi(cur_lapic_base,
+             0,
              5,     // INIT
              0,     // physical
              0,     // level: de-assert
@@ -428,9 +456,10 @@ static void send_init_ipi_to_apic(int apic_id)
              apic_id);  // destination
 }
 
-static void send_startup_ipi_to_apic(int apic_id, int vector)
+static void send_startup_ipi_to_apic(void *cur_lapic_base, int apic_id, int vector)
 {
-    send_ipi(vector,
+    send_ipi(cur_lapic_base,
+             vector,
              6,     // STARTUP
              0,     // physical
              1,     // level: assert
@@ -443,13 +472,14 @@ static void send_startup_ipi_to_apic(int apic_id, int vector)
     MultiProcessor Initialization
 */
 
-static void mp_init(void)
+static void mp_init(void *cur_lapic_base)
 {
-    send_init_ipi_to_apic(1);
+    printf("Initialize other cores...\n");
+    send_init_ipi_to_apic(cur_lapic_base, 1);
     spin_wait(10);
-    send_startup_ipi_to_apic(1, start_ip >> 12);
+    send_startup_ipi_to_apic(cur_lapic_base, 1, start_ip >> 12);
     spin_wait(200);
-    send_startup_ipi_to_apic(1, start_ip >> 12);
+    send_startup_ipi_to_apic(cur_lapic_base, 1, start_ip >> 12);
     spin_wait(200);
 }
 
