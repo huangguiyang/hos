@@ -18,6 +18,7 @@ _start:
     call load16                 # load kern16 to 0x0100:0x0000 (4K)
     call load64                 # load kern64 to 0x1000:0x0000 (64K)
     call enable_a20             # enable A20 Line
+
     ljmp $0, $0x1000            # jump to kern16
 
 load16:
@@ -168,6 +169,8 @@ die:
     hlt
 
 enable_a20:
+    # 必须关中断（实测 virtualbox 需要这个）
+    cli
     # 开启A20地址线
     # 通过8042键盘控制器引脚的方式
     call wait_8042
@@ -196,6 +199,7 @@ enable_a20:
     outb %al, $0x64
 
     call wait_8042
+    sti
     ret
 
 wait_8042:

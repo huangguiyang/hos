@@ -240,6 +240,10 @@ void ap_main()
         We don't need to change the base address, because each processor
          will only write to its own APIC even if all of them use the same base address.
 
+
+        实测：
+        1.QEMU 可以修改地址，但获取值错误。
+        2.VirtualBox 修改后，重新获取地址仍然不变，也就是不支持修改。
     */
 
     // disable_apic();
@@ -505,6 +509,8 @@ static void send_startup_ipi_to_apic(void *lapic_base, int apic_id, int vector)
 
 static void mp_init(void *lapic_base)
 {
+    if (ncpu < 2) return;
+
     printf("Initialize other cores...\n");
     send_init_ipi_to_apic(lapic_base, 1);
     while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
