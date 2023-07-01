@@ -12,6 +12,8 @@
 
 #define GREEN_COLOR 0x02
 
+#define TAB_WITDH 8
+
 // Color VGA
 static char *vga_buffer = (char *)0xb8000;
 static int cursor_line;
@@ -60,8 +62,16 @@ static void fmt_fini(struct fmt *f)
 
 static void fmt_putc(struct fmt *f, int c)
 {
-    if (f->to < f->stop)
-        *f->to++ = c;
+    if (c == '\t') {
+        int i = 0;
+        while (f->to < f->stop && i < TAB_WITDH) {
+            *f->to++ = ' ';
+            i++;
+        }
+    } else {
+        if (f->to < f->stop)
+            *f->to++ = c;
+    }
 }
 
 static void fmt_puts(struct fmt *f, char *s)

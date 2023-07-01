@@ -9,6 +9,8 @@
 .section .text
 .globl _start
 _start:
+    ljmp $0, $reloc
+reloc:
     mov %cs, %ax
     mov %ax, %ds                # 必须要设置DS，16位下类似[x]寻址默认DS:[x]
     mov %ax, %es
@@ -27,7 +29,6 @@ _start:
 
     # 紧接一个 far jmp
     ljmp $0x08, $_start32       # 跳到保护模式程序 (Index = 1, TI=0(GDT), RPL=00)
-
 
 # 段描述符
 
@@ -90,7 +91,7 @@ idt_desc:
 
 .set STACK_TOP, 0x9FFF0     # about 640K
 .set PAGE_DIR, 0x2000       # 8K
-.set PAGE_DIR64, 0x100000   # 1M
+.set PAGE_DIR64, 0x8000     # 32K
 
 .align 16
 _start32:
@@ -102,6 +103,22 @@ _start32:
     lss stack_top, %esp
 
     call setup_paging            # Intel要求初始化64位模式之前，必须先开启分页
+
+    # 64位分页由多核共享，因此只能 BSP 初始化一次
+    # 判断是否BSP
+    # IA32_APIC_BASE = 0x1b
+    # BSP flag is at bit8
+    # RDMSR: 读取ECX指定的MSR到EDX:EAX
+    movl $0x1b, %ecx
+    rdmsr
+    shrl $8, %eax
+    andl $1, %eax
+    cmp $0, %eax
+    je skip_paging64
+
+    call setup_paging64
+
+skip_paging64:
     call enter64
 
     ljmp $0x18, $0x10000        # 终于进入64位模式了 (index=3)
@@ -154,8 +171,10 @@ enter64:
     or $0x00000020, %eax        # PAE=1
     and $0xfffdffff, %eax       # PCIDE=0
     mov %eax, %cr4
-
-    call setup_paging64
+    
+    # 初始化CR3
+    mov $PAGE_DIR64, %eax
+    mov %eax, %cr3
 
     # 查阅Intel手册4，得知IA32_EFER地址为C000_0080
     # 64位寄存器，其中：
@@ -179,6 +198,15 @@ enter64:
     # 因此，此时映射表只能在4GB地址空间内
     # 如果需要放在4GB以上地址，需要切到64位后再重新映射
 setup_paging64:
+     movl $0x1000, %ecx
+     mov $PAGE_DIR64, %ebx
+     # 4*4K 全部置零
+ zero_pages:
+     movl $0, (%ebx)
+     add $4, %ebx
+     dec %ecx
+     jne zero_pages
+
     mov $PAGE_DIR64, %ebx           # PML4E
     movl $PAGE_DIR64+0x1000+3, (%ebx)
     movl $0, 4(%ebx)
@@ -203,8 +231,4 @@ pte64:
     add $8, %ebx
     dec %ecx
     jne pte64
-
-    # 初始化CR3
-    mov $PAGE_DIR64, %eax
-    mov %eax, %cr3
     ret

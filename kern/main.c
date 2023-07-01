@@ -43,9 +43,13 @@ static int physmask_mtrrs[] = {
 };
 
 // 4K aligned entry
-static int start_ip;
-#define ICR_LOW32   0xFEE00300
-#define ICR_HIGH32  0xFEE00310
+static int start_ip = 0x1000;   // kern16 start address
+static struct cpu cpus[8];
+static int ncpu;
+
+static void *page_dir_root = (void *)0x8000;    // 32K
+#define DIRTY_MAP_ADDR  0x30000         // 192K
+#define DIRTY_MAP_SIZE  0x20000         // 128K
 
 static void lscpu(void);
 static void lsmtrr(void);
@@ -56,32 +60,106 @@ static void print_rsdp(struct rsdp *p);
 static struct acpi_sdt_hdr *search_rsdt(struct rsdp *p);
 static void print_sdt(struct acpi_sdt_hdr *p);
 static int verify_sdt_checksum(struct acpi_sdt_hdr *p);
-static struct madt_hdr *search_sdt(int magic);
+static struct madt_hdr *search_sdt(struct acpi_sdt_hdr *rsdt, int magic);
 static struct madt_hdr *search_madt(void);
+static void paging_init(void);
+static void interrupts_init(void);
+static void mp_init(void);
+static void *alloc_page(void);
+static void *alloc_fixed_page(void *p);
+static void *free_page(void *p);
+static void mmap(void *p, int flags);
+static void spin_wait(int ms);
 
 int main()
 {
-    struct cpuinfo info;
-
     tty_init();
+    paging_init();
     
-    printf("Hello, kern64!\n");
+    printf("Hello, kern64! %s\n", is_bsp() ? "I'm the BSP" : "I'm an AP");
 
-    info.eax = 0x80000008;
-    cpuid(&info);
-    maxphyaddr = info.eax & 0xff;
-    maxlineaddr = (info.eax >> 8) & 0xff;
-    printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
+    unsigned int low, high;
+    unsigned long v;
+
+    rdmsr(IA32_APIC_BASE, &low, &high);
+    v = ((unsigned long)high) << 32 | low;
+    printf("IA32_APIC_BASE: %lx\n", v);
+
+    // struct cpuinfo info;
+    // info.eax = 0x80000008;
+    // cpuid(&info);
+    // maxphyaddr = info.eax & 0xff;
+    // maxlineaddr = (info.eax >> 8) & 0xff;
+    // printf("MAXPHYADDR=%d, MAXLINEADDR=%d\n", maxphyaddr, maxlineaddr);
 
     // lscpu();
     // lsmtrr();
     // lstopo();
     // lsrsdp();
     struct madt_hdr *madt = search_madt();
-    printf("MADT=%p\n", madt);
+    if (madt) {
+        printf("MADT=%p, local_apic_addr=%p, flags=%d\n", madt, (void *)madt->local_apic_addr, madt->flags);
+        if (madt->local_apic_addr != LOCAL_APIC_ADDR)
+            printf("unexpected local apic address: %p\n", (void *)madt->local_apic_addr);
+        unsigned int e = madt + 1;
+        while (e < (unsigned int)madt + madt->hdr.length) {
+            struct madt_entry_hdr *ep = e;
+            // printf("entry type=%d, length=%d\n", (int)ep->type, (int)ep->length);
+            if (ep->type == 0) {
+                char *addr = ep + 1;
+                unsigned char acpi_pid = addr[0];
+                unsigned char apic_id = addr[1];
+                unsigned int flags = *(int *)(addr + 2);
+                if (ncpu < NELMS(cpus)) {
+                    cpus[ncpu].acpi_procssor_id = acpi_pid;
+                    cpus[ncpu].apic_id = apic_id;
+                    cpus[ncpu].flags = flags;
+                    ncpu++;
+                } else {
+                    printf("too many cpus\n");
+                }
+                printf("\tACPI PID=%d, APIC ID=%d, flags=%d\n", (int)acpi_pid, (int)apic_id, flags);
+            }
+            e += ep->length;
+        }
+    }
+    printf("%d APIC(s) found.\n", ncpu);
+    mmap(madt->local_apic_addr, PAGING_W | PAGING_PCD);
+    int local_apic_id = *(int *)LOCAL_APIC_ID_REG(LOCAL_APIC_ADDR);
+    int local_apic_ver = *(int *)LOCAL_APIC_VERSION_REG(LOCAL_APIC_ADDR);
+    printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
 
-    for (;;);
+    mp_init();
+
+    for (;;) pause();
     return 0;
+}
+
+void ap_main()
+{
+    printf("Hello, kern64! %s\n", is_bsp() ? "fatal error" : "I'm an AP.");
+
+    unsigned int low, high;
+    unsigned long v;
+
+    low = high = 0;
+
+    rdmsr(IA32_APIC_BASE, &low, &high);
+    v = ((unsigned long)high) << 32 | low;
+    printf("IA32_APIC_BASE: %lx\n", v);
+
+    unsigned int local_apic_base = low & ~0xFFF;
+    int local_apic_id = *(int *)LOCAL_APIC_ID_REG(local_apic_base);
+    int local_apic_ver = *(int *)LOCAL_APIC_VERSION_REG(local_apic_base);
+    printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
+
+    struct cpuinfo info;
+    info.eax = 1;
+    cpuid(&info);
+    int l_apic_id = ((unsigned int)info.ebx) >> 24;
+    printf("l_apic_id = %d\n", l_apic_id);
+
+    for (;;) pause();
 }
 
 static void lscpu(void)
@@ -277,13 +355,8 @@ static void print_sdt(struct acpi_sdt_hdr *p)
     printf("\n");
 }
 
-static struct madt_hdr *search_sdt(int magic)
+static struct madt_hdr *search_sdt(struct acpi_sdt_hdr *rsdt, int magic)
 {
-    struct rsdp *rsdp = search_rsdp();
-    if (rsdp == NULL)
-        return NULL;
-
-    struct acpi_sdt_hdr *rsdt = search_rsdt(rsdp);
     if (rsdt == NULL)
         return NULL;
 
@@ -291,6 +364,7 @@ static struct madt_hdr *search_sdt(int magic)
     unsigned int *psdt = rsdt + 1;
     for (int i = 0; i < nsdt; i++) {
         struct acpi_sdt_hdr *sdt = (struct acpi_sdt_hdr *)psdt[i];
+        mmap(sdt, 0);
         if (verify_sdt_checksum(sdt) == 0) {
             if (*(int *)sdt->signature == magic)
                 return sdt;
@@ -301,41 +375,221 @@ static struct madt_hdr *search_sdt(int magic)
 
 static struct madt_hdr *search_madt(void)
 {
-    return search_sdt(APIC_MAGIC);
+    struct rsdp *rsdp = search_rsdp();
+    if (rsdp) {
+        mmap(rsdp->rsdt_addr, 0);
+        struct acpi_sdt_hdr *rsdt = search_rsdt(rsdp);
+        return search_sdt(rsdt, APIC_MAGIC);
+    }
+
+    return NULL;
 }
 
 /*
-MultiProcessor Initialization
+    IPI Message
 */
 
-void mp_init(void)
+static int is_icr_idle(void)
 {
-    send_init_ipi(ALL_EXCLUDING_SELF, 1);
-
-    send_init_ipi(ALL_INCLUDING_SELF, 0);
-
-    send_startup_ipi(ALL_EXCLUDING_SELF, start_ip >> 12);
-    send_startup_ipi(ALL_EXCLUDING_SELF, start_ip >> 12);
+    int low = *((int *)LOCAL_APIC_ICR_LOW32(LOCAL_APIC_ADDR));
+    return ((low >> 12) & 1) == 0;
 }
 
-void send_init_ipi(int mode, int asrt)
+static void send_ipi(int vector, 
+                     int delivery_mode,
+                     int dest_mode,
+                     int level,
+                     int trigger_mode,
+                     int dest_shorthand,
+                     int destination)
 {
-    int c;
+    int low, high;
+
+    high = (destination & 0xFF) << 24;
+    low = (vector & 0xFF) |
+          ((delivery_mode & 7) << 8) |
+          ((dest_mode & 1) << 11) |
+          ((level & 1) << 14) |
+          ((trigger_mode & 1) << 15) |
+          ((dest_shorthand & 3) << 18);
+
+    *((int *)LOCAL_APIC_ICR_HIGH32(LOCAL_APIC_ADDR)) = high;
+    *((int *)LOCAL_APIC_ICR_LOW32(LOCAL_APIC_ADDR)) = low;
+}
+
+static void send_init_ipi_to_apic(int apic_id)
+{
+    send_ipi(0,
+             5,     // INIT
+             0,     // physical
+             0,     // level: de-assert
+             0,     // edge
+             NO_SHORTHAND,
+             apic_id);  // destination
+}
+
+static void send_startup_ipi_to_apic(int apic_id, int vector)
+{
+    send_ipi(vector,
+             6,     // STARTUP
+             0,     // physical
+             1,     // level: assert
+             0,     // edge
+             NO_SHORTHAND,
+             apic_id);  // destination
+}
+
+/*
+    MultiProcessor Initialization
+*/
+
+static void mp_init(void)
+{
+    send_init_ipi_to_apic(1);
+    spin_wait(10);
+    send_startup_ipi_to_apic(1, start_ip >> 12);
+    spin_wait(200);
+    send_startup_ipi_to_apic(1, start_ip >> 12);
+    spin_wait(200);
+}
+
+int is_bsp(void)
+{
+    int low = 0, high = 0;
+    rdmsr(IA32_APIC_BASE, &low, &high);
+    return (low >> 8) & 1; // BSP flag is at bit8
+}
+
+static void *free_page(void *p)
+{
+    int *dirty_map_addr = (int *)DIRTY_MAP_ADDR;
+    unsigned int u = p;
+    int i = u >> 17;
+    int b = (u >> 12) & 31;
     
-    // INIT, edge, assert
-    c = (mode << 18) | (asrt << 14) | (5 << 8);
-
-    *((int *)ICR_HIGH32) = 0;
-    *((int *)ICR_LOW32) = c;
+    dirty_map_addr[i] &= ~(1 << b);
 }
 
-void send_startup_ipi(int mode, int vector)
+static void *alloc_page(void)
 {
-    int c;
+    int *dirty_map_addr = (int *)DIRTY_MAP_ADDR;
+    int b = 0;
 
-    // STARTUP, edge
-    c = (mode << 18) | (6 << 8) | (vector & 0xff);
+    for (int i = 0; i < 4096/sizeof(int); i++) {
+        unsigned int k = dirty_map_addr[i];
+        for (int j = 0; j < 8 * sizeof(int); j++) {
+            if (k & 1) {
+                b++;
+                k >>= 1;
+                continue;
+            } else {
+                dirty_map_addr[i] |= 1 << j;
+                return b << 12L;
+            }
+        }
+    }
 
-    *((int *)ICR_HIGH32) = 0;
-    *((int *)ICR_LOW32) = c;
+    return NULL;
+}
+
+static void *alloc_fixed_page(void *p)
+{
+    int *dirty_map_addr = (int *)DIRTY_MAP_ADDR;
+    unsigned int u = p;
+    int i = u >> 17;
+    int b = (u >> 12) & 31;
+    
+    dirty_map_addr[i] |= 1 << b;
+
+    return (long)p & ~4095;
+}
+
+static void *alloc_page_for_dir(void)
+{
+    void *p = alloc_page();
+    for (int i = 0; i < 4096/8; i++)
+        ((unsigned long *)p)[i] = 0;
+    return p;
+}
+
+static void paging_init(void)
+{
+    //TODO:根据实际内存大小
+    // 先按照4GB
+    int *dirty_map_addr = (int *)DIRTY_MAP_ADDR;
+    int n = 0x100000 / (4096 * sizeof(int) * 8);
+    //1MB以内全部标记
+    for (int i = 0; i < DIRTY_MAP_SIZE/sizeof(int); i++)
+        dirty_map_addr[i] = i < n ? 0xFFFFFFFF : 0;
+}
+
+static void mmap(void *p, int flags)
+{
+    unsigned long u = p;
+    unsigned long *d1, *d2, *d3, *d4;
+    int i;
+    unsigned long v;
+
+    d1 = page_dir_root;
+    i = (u >> 39) & 511;
+    v = d1[i];
+
+    if ((v & 1) == 0) {
+        d2 = alloc_page_for_dir();
+        printf("alloc page d2\n");
+        d1[i] = (unsigned long)d2 | PAGING_W | PAGING_P;
+    } else {
+        v = (v << 16) >> 16;
+        d2 = (v >> 12) << 12;
+    }
+
+    i = (u >> 30) & 511;
+    v = d2[i];
+    if ((v & 1) == 0) {
+        d3 = alloc_page_for_dir();
+        printf("alloc page d3\n");
+        d2[i] = (unsigned long)d3 | PAGING_W | PAGING_P;
+    } else {
+        v = (v << 16) >> 16;
+        d3 = (v >> 12) << 12;
+    }
+
+    i = (u >> 21) & 511;
+    v= d3[i];
+    if ((v & 1) == 0) {
+        d4 = alloc_page_for_dir();
+        printf("alloc page d4\n");
+        d3[i] = (unsigned long)d4 | PAGING_W | PAGING_P;
+    } else {
+        v = (v << 16) >> 16;
+        d4 = (v >> 12) << 12;
+    }
+
+    i = (u >> 12) & 511;
+    v = d4[i];
+    if ((v & 1) == 0) {
+        void *p2 = alloc_fixed_page(p);
+        d4[i] = (unsigned long)p2 | flags | PAGING_P;
+        printf("mapped for %p\n", p);
+    } else {
+        d4[i] |= flags | PAGING_P;
+        printf("already mapped for %p\n", p);
+    }
+}
+
+static void interrupts_init(void)
+{
+
+}
+
+static void spin_wait(int ms)
+{
+    int k1, k2;
+
+    k1 = 123;
+    k2 = 456;
+
+    for (int i = 0; i < ms; i++)
+        for (long j = 0; j < (1L<<20); j++)
+            k2 = k1 + k2;
 }

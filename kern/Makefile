@@ -32,6 +32,7 @@ all: $O/kern64 $O/kern16
 
 $O/kern64: ${KERN_OBJS}
 	${LD} ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $^ -o $@
+	cp $@ $@.o
 	objcopy ${OBFLAGS} $@
 
 $O/start64.o: start64.s

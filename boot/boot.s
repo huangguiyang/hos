@@ -16,13 +16,9 @@ _start:
     mov $0x4FF0, %sp            # about 20K
 
     call load16                 # load kern16 to 0x0100:0x0000 (4K)
-
     call load64                 # load kern64 to 0x1000:0x0000 (64K)
-
     call enable_a20             # enable A20 Line
-
     ljmp $0, $0x1000            # jump to kern16
-
 
 load16:
     xor %bx, %bx

@@ -2,13 +2,14 @@
 
 .code64
 
-.set STACK_TOP, 0x9FFF0     # about 640K
+.set STACK_TOP, 0x9AFF0     # about 620K
+.set STACK_TOP1, 0x9FFF0     # about 640K
 
 .section .text
 .globl _start
-.globl hlt, sti, cpuid
+.globl hlt, sti, cpuid, pause
 .globl inb, inw, indw, outb, outw, outdw
-.globl rdmsr, wrmsr
+.globl rdmsr, wrmsr, set_cr3
 _start:
     movl $0x20, %eax            # 数据段选择符 (index=4)
     mov %ax, %ds
@@ -27,11 +28,32 @@ _start:
     mov %ax, %fs
     mov %ax, %gs
     mov %ax, %ss
-    lss stack_top, %esp
 
+    # 不同核心需要使用不同的堆栈
+    # 判断是否BSP
+    movl $0x1b, %ecx
+    rdmsr
+    shrl $8, %eax
+    andl $1, %eax
+    cmp $0, %eax
+    je ap_init
+    
+    lss stack_top, %esp
     call main
+    hlt
+
+ap_init:
+    lss stack_top1, %esp
+    call ap_main
+    hlt
+
 hlt:
     hlt
+    ret
+
+pause:
+    pause
+    ret
 
 sti:
     sti
@@ -94,33 +116,44 @@ cpuid:
     # RDMSR: 读取ECX指定的MSR到EDX:EAX
     # WRMSR: 将EDX:EAX写入ECX指定的MSR
 
+    # addr=>edi, low=>rsi, high=>rdx
+
     # void rdmsr(int addr, int *low, int *high);
 rdmsr:
     mov %rdx, %r8           # save high
-    mov %rdi, %rcx
+    movl %edi, %ecx
     rdmsr
     cmp $0, %rsi
     je rdmsr_high
-    movl %edx, (%r8)
+    movl %eax, (%rsi)
 rdmsr_high:
     cmp $0, %r8
     je rdmsr_ret 
-    movl %eax, (%rsi)
+    movl %edx, (%r8)
 rdmsr_ret:
     ret
 
     # void wrmsr(int addr, int low, int high);
 wrmsr:
-    mov %rdi, %rcx
-    mov %esi, %eax          # low (high already in edx)
+    movl %edi, %ecx
+    movl %esi, %eax          # low (high already in edx)
+    movl $0xFFFFFFFF, %edx
     wrmsr
     ret
 
+    # void set_cr3(void *addr);
+set_cr3:
+    mov %rdi, %cr3
+    ret
 
 .section .data
 
 stack_top:
     .long STACK_TOP
+    .word 0x10
+
+stack_top1:
+    .long STACK_TOP1
     .word 0x10
 
 .align 8

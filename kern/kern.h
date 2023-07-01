@@ -11,6 +11,7 @@
 
 extern void sti(void);
 extern void hlt(void);
+extern void pause(void);
 extern int read_cursor(void);
 extern void set_cursor(int position);
 
@@ -36,21 +37,21 @@ extern void *memset(void *p, int c, unsigned long len);
 extern void *memcpy(void *dst, void *src, unsigned long len);
 extern int memcmp(void *a, void *b, unsigned long len);
 
-// IPI broadcast mode
-#define NO_BROCAST          0
+// IPI destination shorthand
+#define NO_SHORTHAND        0
 #define SELF                1
 #define ALL_INCLUDING_SELF  2
 #define ALL_EXCLUDING_SELF  3
 
-extern void apic_init(void);
-extern void mp_init(void);
-extern void task_init(void);
-
-extern void send_init_ipi(int mode, int asrt);
-extern void send_startup_ipi(int mode, int vector);
-
 extern void rdmsr(int addr, int *low, int *high);
 extern void wrmsr(int addr, int low, int high);
+extern void set_cr3(void *addr);
+
+/*
+ is it bootstrap processor?
+ 通过读取 IA32_APIC_BASE MSR BSP 标志位(bit 8)来确定
+ */
+extern int is_bsp(void);
 
 #define IA32_MTRRCAP                0xfe
 #define IA32_MTRR_DEF_TYPE          0x2ff
@@ -87,13 +88,15 @@ extern void wrmsr(int addr, int low, int high);
 #define IA32_MTRR_PHYSBASE9         0x212
 #define IA32_MTRR_PHYSMASK9         0x213
 
+#define IA32_APIC_BASE              0x1b
+
 // RSDP (Root System Description Pointer) structure
 struct rsdp {
     char signature[8];              // "RSD PTR "
     unsigned char checksum;
     char oem_id[6];
     unsigned char revision;
-    int rsdt_addr;
+    unsigned int rsdt_addr;         // 32-bit physical address
 
     // version 2
     int length;
@@ -129,3 +132,31 @@ struct madt_entry_hdr {
 
 #define SIG_MAGIC(a,b,c,d)  ((d << 24 ) | (c << 16) | (b << 8) | a)
 #define APIC_MAGIC  SIG_MAGIC('A','P','I','C')
+
+/*
+所有逻辑处理器的默认 LOCAL APIC 地址都是一样的 (0xFEE00000)
+可以通过修改 IA32_APIC_BASE MSR 来修改这个地址
+*/ 
+
+#define LOCAL_APIC_ADDR                   0xFEE00000
+#define LOCAL_APIC_ID_REG(base)           ((unsigned int)(base) + 0x20)
+#define LOCAL_APIC_VERSION_REG(base)      ((unsigned int)(base) + 0x30)
+#define LOCAL_APIC_ICR_LOW32(base)        ((unsigned int)(base) + 0x300)
+#define LOCAL_APIC_ICR_HIGH32(base)       ((unsigned int)(base) + 0x310)
+
+struct cpu {
+    unsigned char acpi_procssor_id;
+    unsigned char apic_id;
+    unsigned int flags;
+};
+
+// 4k paging flags
+#define PAGING_P        (1 << 0)
+#define PAGING_W        (1 << 1)
+#define PAGING_USER     (1 << 2)
+#define PAGING_PWT      (1 << 3)
+#define PAGING_PCD      (1 << 4)
+#define PAGING_ACCESSED (1 << 5)
+#define PAGING_DIRTY    (1 << 6)
+#define PAGING_PAT      (1 << 7)
+#define PAGING_GLOBAL   (1 << 8)
