@@ -161,6 +161,6 @@ void delay_ms(int ms)
     k2 = 456;
 
     for (int i = 0; i < ms; i++)
-        for (long j = 0; j < (1L<<10); j++)
+        for (long j = 0; j < (1L<<18); j++)
             k2 = k1 + k2;
 }

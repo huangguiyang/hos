@@ -237,3 +237,17 @@ extern uint g_lapic_num;
 extern volatile uint g_lapic_ative_num;
 
 extern void smp_init(void);
+
+typedef struct {
+    volatile int locked;
+} spinlock_t;
+
+extern void sync_lock_release(void *p);
+extern int sync_lock_test_and_set(void *p);
+
+extern void spinlock_init(spinlock_t *lock);
+extern void spinlock_lock(spinlock_t *lock);
+extern void spinlock_unlock(spinlock_t *lock);
+extern int spinlock_trylock(spinlock_t *lock);
+
+extern spinlock_t g_kern_lock;

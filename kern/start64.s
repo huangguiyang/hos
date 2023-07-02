@@ -9,6 +9,7 @@
 .globl halt, sti, cli, cpuid, pause
 .globl inb, inw, indw, outb, outw, outdw
 .globl rdmsr, wrmsr
+.globl sync_lock_test_and_set, sync_lock_release
 _start:
     movl $0x20, %eax            # 数据段选择符 (index=4)
     mov %ax, %ds
@@ -44,13 +45,17 @@ bsp_init:
     mov $0x1000, %rsp
     xadd %rsp, (next_sp)
     call main
+bsp_die:
     hlt
+    jmp bsp_die
 
 ap_init:
     mov $0x1000, %rsp
     lock xadd %rsp, (next_sp)       # AP 是并行进入的，需要加锁
     call ap_main
+ap_die:
     hlt
+    jmp ap_die
 
     # void halt();
 halt:
@@ -152,6 +157,20 @@ wrmsr:
     movl %esi, %eax          # low (high already in edx)
     movl $0xFFFFFFFF, %edx
     wrmsr
+    ret
+
+    # int sync_lock_test_and_set(void *p);
+    # 加锁设置 *p = 1 并返回其原值
+sync_lock_test_and_set:
+    movl $1, %eax
+    lock xchgb %al, (%rdi)
+    ret
+
+    # void sync_lock_release(void *p);
+sync_lock_release:
+    xorl %eax, %eax
+    lock xchgb %al, (%rdi)
+    mfence
     ret
 
 .section .data

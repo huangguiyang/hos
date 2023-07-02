@@ -24,7 +24,7 @@ CFLAGS=-Wall \
 	-fno-stack-protector
 LDFLAGS=-nostdlib
 OBFLAGS=-O binary -j .text -j .data -j .bss -j .rodata
-KERN_OBJS=$O/start64.o $O/main.o $O/printf.o $O/mm.o $O/apic.o $O/cpu.o $O/smp.o
+KERN_OBJS=$O/start64.o $O/main.o $O/printf.o $O/mm.o $O/apic.o $O/cpu.o $O/smp.o $O/lock.o
 
 .PHONY: all
 

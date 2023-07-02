@@ -1,8 +1,11 @@
 #include "kern.h"
 
+spinlock_t g_kern_lock;
+
 int main()
 {
     console_init();
+    spinlock_init(&g_kern_lock);
     mm_init();
     apic_init();
 
@@ -85,8 +88,9 @@ int ap_main()
     // local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     // printf("*Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
 
-    // TODO: lock
+    spinlock_lock(&g_kern_lock);
     g_lapic_ative_num++;
+    spinlock_unlock(&g_kern_lock);
 
     for (;;) pause();
     return 0;
