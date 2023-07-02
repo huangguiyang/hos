@@ -41,7 +41,7 @@ void smp_init(void)
 {
     if (g_lapic_num < 2) return;
 
-    printf("Bring up APs...\n\n");
+    printf("Bring up APs...\n");
 
     void *base = get_lapic_base_addr();
     int self = get_lapic_id(base);
