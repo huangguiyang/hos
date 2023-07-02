@@ -18,26 +18,36 @@ static void send_startup_ipi_to_apic(void *lapic_base, int apic_id, int vector)
                     ICR_STARTUP | ICR_PHYSICAL | ICR_ASSERT | ICR_EDGE | ICR_NO_SHORTHAND);
 }
 
+static void wakeup(void *lapic_base, int apic_id)
+{
+    // Send INIT-SIPI-SIPI sequence
+    send_init_ipi_to_apic(lapic_base, apic_id);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
+    delay_ms(10);
+    
+    send_startup_ipi_to_apic(lapic_base, apic_id, AP_STARTUP_IP >> 12);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
+    delay_ms(200);
+    
+    send_startup_ipi_to_apic(lapic_base, apic_id, AP_STARTUP_IP >> 12);
+    while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
+        ;/* wait */
+    delay_ms(200);
+}
+
 void smp_init(void)
 {
     if (g_lapic_num < 2) return;
 
-    void *base = get_lapic_base_addr();
+    printf("Bring up APs...\n\n");
 
-    // Send INIT-SIPI-SIPI sequence
-    printf("Bring up APs...\n");
-    send_init_ipi_to_apic(base, 1);
-    while (read_lapic_reg(base, LAPIC_ICR_LOW32) & ICR_PENDING)
-        ;/* wait */
-    spin_wait(10);
-    
-    send_startup_ipi_to_apic(base, 1, AP_STARTUP_IP >> 12);
-    while (read_lapic_reg(base, LAPIC_ICR_LOW32) & ICR_PENDING)
-        ;/* wait */
-    spin_wait(200);
-    
-    send_startup_ipi_to_apic(base, 1, AP_STARTUP_IP >> 12);
-    while (read_lapic_reg(base, LAPIC_ICR_LOW32) & ICR_PENDING)
-        ;/* wait */
-    spin_wait(200);
+    void *base = get_lapic_base_addr();
+    int self = get_lapic_id(base);
+
+    for (int i = 0; i < g_lapic_num; i++) {
+        if (g_lapic[i].apic_id != self)
+            wakeup(base, g_lapic[i].apic_id);
+    }
 }

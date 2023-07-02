@@ -2,6 +2,7 @@
 
 struct lapic g_lapic[MAX_LAPIC];
 uint g_lapic_num;
+volatile uint g_lapic_ative_num;
 
 static struct rsdp *search_rsdp(void)
 {
@@ -179,6 +180,7 @@ int get_lapic_id(void *base)
 
 void apic_init(void)
 {
+    g_lapic_ative_num = 1;
     struct madt_hdr *madt = search_madt();
     if (madt) {
         printf("MADT=%p, local_apic_addr=%p, flags=%d\n", madt, (void *)madt->local_apic_addr, madt->flags);

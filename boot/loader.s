@@ -16,10 +16,10 @@ relocate_start:
     mov %ax, %ss
     mov $BOOTSEC_ADDR, %sp
 
-    # 每个CPU都需要不同的栈，因此这里先不使用栈，推到后面
-
 loader_ap16:
     jmp loader_bsp16            # will be patched with NOP for APs
+
+    # 每个AP都需要不同的栈，因此这里先不使用栈，推到后面
 
     cli
     lidt idt_desc32
@@ -354,7 +354,9 @@ prot_ap32:
     mov %ax, %ss
     mov %ax, %fs
     mov %ax, %gs
-    mov $BOOTSEC_ADDR, %esp
+    
+    mov $0x200, %esp
+    lock xadd %esp, (next_sp)
 
     call enter32
     call enter64
@@ -483,3 +485,7 @@ enter64:
     or $0x80000000, %eax        # PG=1
     mov %eax, %cr0
     ret
+
+.align 16
+next_sp:
+    .int TMP_KERNEL_STACK_BASE

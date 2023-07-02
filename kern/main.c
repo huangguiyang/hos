@@ -5,8 +5,6 @@ int main()
     console_init();
     mm_init();
     apic_init();
-    
-    printf("Hello, kern64! %s\n", is_bsp() ? "I'm the BSP" : "Fatal error");
 
     // struct cpuid info;
     // info.eax = 0x80000008;
@@ -21,16 +19,16 @@ int main()
 
     unsigned int low, high;
     unsigned long v;
-
     rdmsr(IA32_APIC_BASE, &low, &high);
     v = ((unsigned long)high) << 32 | low;
-    printf("IA32_APIC_BASE: %lx\n", v);
 
     void *p = get_lapic_base_addr();
     mmap(p, PAGING_W | PAGING_PCD);
     int local_apic_id = get_lapic_id(p);
     int local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
-    printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
+
+    printf("Hello, kern64! %s %d (APIC_MSR=%lx, APIC_VER=0x%x)\n", 
+            is_bsp() ? "I'm CPU" : "ERROR", local_apic_id, v, local_apic_ver);
 
     smp_init();
 
@@ -40,21 +38,19 @@ int main()
 
 int ap_main()
 {
-    printf("\nHello, kern64! %s\n", is_bsp() ? "Fatal error" : "I'm an AP.");
-
     unsigned int low, high;
     unsigned long v;
 
     low = high = 0;
-
     rdmsr(IA32_APIC_BASE, &low, &high);
     v = ((unsigned long)high) << 32 | low;
-    printf("IA32_APIC_BASE: %lx\n", v);
 
     void *p = get_lapic_base_addr();
     int local_apic_id = get_lapic_id(p);
     int local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
-    printf("Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
+
+    printf("Hello, kern64! %s %d (APIC_MSR=%lx, APIC_VER=0x%x)\n", 
+            is_bsp() ? "ERROR" : "I'm CPU", local_apic_id, v, local_apic_ver);
 
     /*
         QEMU 似乎是不支持重新映射 Local APIC Address
@@ -88,6 +84,8 @@ int ap_main()
     // local_apic_id = get_lapic_id(p);
     // local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     // printf("*Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
+
+    g_lapic_ative_num++;
 
     for (;;) pause();
     return 0;

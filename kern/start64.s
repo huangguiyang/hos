@@ -38,12 +38,17 @@ _start:
     cmp $0, %eax
     je ap_init
     
-    mov $STACK_TOP, %esp
+    # 每个 CPU 分配独立的 4K 栈
+
+bsp_init:
+    mov $0x1000, %rsp
+    xadd %rsp, (next_sp)
     call main
     hlt
 
 ap_init:
-    mov $STACK_TOP1, %esp
+    mov $0x1000, %rsp
+    lock xadd %rsp, (next_sp)       # AP 是并行进入的，需要加锁
     call ap_main
     hlt
 
@@ -170,5 +175,5 @@ idt_desc:
     .word 0
     .quad 0
 
-kernel_stacks:
+next_sp:
     .quad KERNEL_STACK_BASE

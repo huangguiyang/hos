@@ -99,10 +99,10 @@ void mmap(void *p, int flags)
     if ((v & 1) == 0) {
         void *p2 = alloc_fixed_page(p);
         d4[i] = (unsigned long)p2 | flags | PAGING_P;
-        printf("mapped for %p\n", p);
+        printf("Memory mapped for %p\n", p);
     } else {
         d4[i] |= flags | PAGING_P;
-        printf("already mapped for %p\n", p);
+        // printf("already mapped for %p\n", p);
     }
 }
 

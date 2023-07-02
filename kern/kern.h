@@ -197,7 +197,7 @@ extern void cpuid(struct cpuid *info);
 extern void ls_cpu(void);
 extern void ls_mtrr(void);
 extern void ls_topology(void);
-extern void spin_wait(int ms);
+extern void delay_ms(int ms);
 
 extern void console_init(void);
 extern int printf(const char *fmt, ...);
@@ -221,5 +221,6 @@ extern void write_lapic_reg(void *base, int offset, int value);
 extern int get_lapic_id(void *base);
 extern struct lapic g_lapic[MAX_LAPIC];
 extern uint g_lapic_num;
+extern volatile uint g_lapic_ative_num;
 
 extern void smp_init(void);

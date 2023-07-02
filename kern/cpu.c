@@ -153,7 +153,7 @@ void ls_topology(void)
     printf("MAX VALID LEVEL: %d\n", s);
 }
 
-void spin_wait(int ms)
+void delay_ms(int ms)
 {
     int k1, k2;
 
@@ -161,6 +161,6 @@ void spin_wait(int ms)
     k2 = 456;
 
     for (int i = 0; i < ms; i++)
-        for (long j = 0; j < (1L<<20); j++)
+        for (long j = 0; j < (1L<<10); j++)
             k2 = k1 + k2;
 }
