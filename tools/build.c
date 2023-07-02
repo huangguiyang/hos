@@ -5,12 +5,13 @@
 // 1440k
 #define FLOPPY_SIZE (1024 * 1440)
 
+// 1440k 软盘每个磁道有18个扇区
+// 由于 loader 实现代码限制，kern64 起始地址必须在第一个磁道内
 static int sizes[] = {
     0,
     1024,       // boot sector
-    1024,       // boot
-    4*1024,     // kern16
-    124*1024,   // kern64
+    4*1024,     // loader
+    128*1024,   // kern64
 };
 
 static void die(const char *fmt, ...)
@@ -25,7 +26,7 @@ static void die(const char *fmt, ...)
 
 static void usage(void)
 {
-    die("Usage: build bootsect boot kern16 kern64 > image");
+    die("Usage: build bootsect loader kern64 > image");
 }
 
 int main(int argc, char *argv[])
@@ -34,10 +35,10 @@ int main(int argc, char *argv[])
     char buf[1024];
     int i, j, c;
 
-    if (argc < 5)
+    if (argc < 4)
         usage();
 
-    for (i = 1; i < 5; i++) {
+    for (i = 1; i < 4; i++) {
         if (!(fp = fopen(argv[i], "rb")))
             die("can't open file %s", argv[i]);
         for (j = 0; (c = fread(buf, 1, sizeof buf, fp)) > 0; j += c)

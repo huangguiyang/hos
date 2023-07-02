@@ -1,8 +1,8 @@
-# loaded at 0x7c00
+# loaded at 0x7c00 (31K)
+
+.include "defines.s"
 
 .code16
-
-.set DEST_SEG, 0x9600
 
 .section .text
 .globl _start
@@ -11,6 +11,19 @@ _start:
 
 .org 0x5a, 0
 label_5A:
+    mov %cs, %ax
+    mov %ax, %ds
+    mov %ax, %es
+    mov %ax, %ss
+    mov $BOOTSEC_ADDR, %sp
+
+    # clear screen
+    mov $0x03, %ax
+    int $0x10
+
+    # print message
+    call print_msg
+
     # 读取扇区有两种方式：一种直接使用BIOS接口；一种直接使用IN/OUT指令
     # BIOS INT 13h, AH=02h Read sectors from drive
     # 其中 sector 较为特殊，从1开始算起
@@ -20,40 +33,55 @@ label_5A:
     # DH = head
     # DL = 磁盘号（00H-7FH 软盘，80H-FFH 硬盘）
 load:
-    mov %cs, %ax
-    mov %ax, %ds
+    xor %ax, %ax
     mov %ax, %es
-
-    xor %bx, %bx
-    mov $DEST_SEG, %ax
-    mov %ax, %es            # destination es:bx
-    movb $0x02, %ah         # read sectors command
-    movb nseg, %al          # number of sectors
-    movb $0, %ch            # cylinder 0
-    movb seg_beg, %cl       # sector number (count from 1)
-    mov $0, %dx             # head 0, drive 0
+    mov $LOADER_ADDR, %bx       # destination es:bx           
+    movb $0x02, %ah             # read sectors command
+    movb $LOADER_NSECS, %al     # number of sectors
+    movb $0, %ch                # cylinder 0
+    movb $LOADER_SEC_IDX, %cl   # sector number (count from 1)
+    mov $0, %dx                 # head 0, drive 0
     int $0x13
-    jnc load_ok             # jump if CF=0 (successful)
+    jnc load_ok                 # jump if CF=0 (successful)
 
-    mov $0, %ax             # reset disk
+    mov $0, %ax                 # reset disk
     mov $0, %dx
     int $0x13
     jmp load
 
 load_ok:
-    ljmp $DEST_SEG, $0       # jump to boot
+    ljmp $0, $LOADER_ADDR       # jump to loader
 
-.org 426, 0
-boot_tab:
-    # location information for 'boot' file
-    # format: 
-    # [0]nsectors, [1]cylinder, [2]head, [3]sector
-    # ...
-    # 0,0,0,0
-seg_beg:
-    .byte 0x03
-nseg:
-    .byte 0x02
+print_msg:
+    # 获取当前光标位置
+    # CH: Start scan line
+    # CL: End scan line
+    # DH: row
+    # DL: column
+    mov $0x03, %ah
+    int $0x10
+
+    # 打印字符串：int 10h, ah=13h
+    # al: 模式
+    # bh: 页号
+    # bl: 颜色属性 (4bit background | 4bit foreground)
+    # cx: 字符个数
+    # dh: 行
+    # dl: 列
+    # es:bp - 字符串指针
+    mov %cs, %ax
+    mov %ax, %es
+    mov $0x02, %bx
+    mov msg_len, %cx
+    mov $msg, %bp
+    mov $0x1301, %ax
+    int $0x10
+    ret
+
+msg:
+    .asciz "Booting..."
+msg_len:
+    .word . - msg
 
 .org 446, 0
     # partition table (64 bytes)

@@ -1,33 +1,33 @@
-# loaded at 0x1000:0x0000 (64K)
+# loaded at 0x10000
+
+.include "../boot/defines.s"
 
 .code64
 
-.set STACK_TOP, 0x9AFF0     # about 620K
-.set STACK_TOP1, 0x9FFF0     # about 640K
-
 .section .text
 .globl _start
-.globl hlt, sti, cpuid, pause
+.globl halt, sti, cli, cpuid, pause
 .globl inb, inw, indw, outb, outw, outdw
-.globl rdmsr, wrmsr, set_cr3
+.globl rdmsr, wrmsr
 _start:
     movl $0x20, %eax            # 数据段选择符 (index=4)
     mov %ax, %ds
     mov %ax, %es
+    mov %ax, %ss
     mov %ax, %fs
     mov %ax, %gs
 
     lidtq idt_desc
     lgdtq gdt_desc
 
-     # 由于加载了新的 GDT，所以重新设置下段寄存器
+    # 由于加载了新的 GDT，所以重新设置下段寄存器
 
     movl $0x10, %eax
     mov %ax, %ds
     mov %ax, %es
+    mov %ax, %ss
     mov %ax, %fs
     mov %ax, %gs
-    mov %ax, %ss
 
     # 不同核心需要使用不同的堆栈
     # 判断是否BSP
@@ -38,28 +38,36 @@ _start:
     cmp $0, %eax
     je ap_init
     
-    lss stack_top, %esp
+    mov $STACK_TOP, %esp
     call main
     hlt
 
 ap_init:
-    lss stack_top1, %esp
+    mov $STACK_TOP1, %esp
     call ap_main
     hlt
 
-hlt:
+    # void halt();
+halt:
     hlt
     ret
 
+    # void pause();
 pause:
     pause
     ret
 
+    # void sti();
 sti:
     sti
     ret
 
-    # inb(int port, int *byte);
+    # void cli();
+cli:
+    cli
+    ret
+
+    # void inb(int port, int *byte);
 inb:
     mov %rdi, %rdx              # port
     inb %dx, %al                # read into AL
@@ -80,7 +88,7 @@ indw:
     movl %eax, (%rsi)
     ret
 
-    # outb(int port, int byte);
+    # void outb(int port, int byte);
 outb:
     mov %rdi, %rdx              # port
     mov %rsi, %rax
@@ -141,20 +149,7 @@ wrmsr:
     wrmsr
     ret
 
-    # void set_cr3(void *addr);
-set_cr3:
-    mov %rdi, %cr3
-    ret
-
 .section .data
-
-stack_top:
-    .long STACK_TOP
-    .word 0x10
-
-stack_top1:
-    .long STACK_TOP1
-    .word 0x10
 
 .align 8
 gdt:
@@ -174,3 +169,6 @@ gdt_desc:
 idt_desc:
     .word 0
     .quad 0
+
+kernel_stacks:
+    .quad KERNEL_STACK_BASE

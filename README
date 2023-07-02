@@ -2,7 +2,7 @@ A minimal kernel demo with following features:
 
     - x86_64
     - APIC (Advanced Programmable Interrupt Controller)
-    - Multi-Processors
+    - SMP support
     - Self-contained (no other dependencies)
 
 HOWTO:
@@ -11,6 +11,5 @@ HOWTO:
 
 
 Run in QEMU:
-```
-qemu-system-x86_64 -m 256 -fda floppy.img --smp cores=2,threads=2
-```
+
+    qemu-system-x86_64 -m 256 -fda floppy.img --smp cores=2,threads=2

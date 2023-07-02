@@ -24,26 +24,18 @@ CFLAGS=-Wall \
 	-fno-stack-protector
 LDFLAGS=-nostdlib
 OBFLAGS=-O binary -j .text -j .data -j .bss -j .rodata
-KERN_OBJS=$O/start64.o $O/main.o $O/printf.o
+KERN_OBJS=$O/start64.o $O/main.o $O/printf.o $O/mm.o $O/apic.o $O/cpu.o $O/smp.o
 
 .PHONY: all
 
-all: $O/kern64 $O/kern16
+all: $O/kern64
 
 $O/kern64: ${KERN_OBJS}
 	${LD} ${LDFLAGS} -m elf_x86_64 -Ttext 0x10000 $^ -o $@
-	cp $@ $@.o
 	objcopy ${OBFLAGS} $@
 
 $O/start64.o: start64.s
 	${AS} --64 $^ -o $@
-
-$O/kern16: $O/start16.o
-	${LD} ${LDFLAGS} -m elf_i386 -Ttext 0x1000 $^ -o $@
-	objcopy ${OBFLAGS} $@
-
-$O/start16.o: start16.s
-	${AS} --32 $^ -o $@
 
 $O/%.o: %.c
 	${CC} ${CFLAGS} -m64 -c $^ -o $@

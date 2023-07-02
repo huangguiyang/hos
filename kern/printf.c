@@ -26,25 +26,6 @@ struct fmt {
     char *stop;
 };
 
-void tty_init(void)
-{
-    int pos;
-
-    // 80 columns x 25 lines
-    pos = read_cursor();
-    cursor_line = pos / COLUMN_MAX;
-    cursor_column = pos % COLUMN_MAX;
-}
-
-int printf(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(print_buffer, sizeof(print_buffer), fmt, ap);
-    va_end(ap);
-    return 0;
-}
-
 static void fmt_init(struct fmt *f, char *str, int size)
 {
     f->buf = str;
@@ -276,43 +257,6 @@ update_position:
     return 1;
 }
 
-void *memset(void *p, int c, unsigned long len)
-{
-    char *p1, *p2;
-
-    for (p1 = p, p2 = p1 + len; p1 < p2; p1++)
-        *p1 = c;
-
-    return p;
-}
-
-void *memcpy(void *dst, void *src, unsigned long len)
-{
-    char *d = dst;
-    char *s = src;
-
-    for (int i = 0; i < len; i++)
-        *d++ = *s++;
-
-    return dst;
-}
-
-int memcmp(void *a, void *b, unsigned long len)
-{
-    unsigned char *p1 = a;
-    unsigned char *p2 = b;
-    int n = 0, i;
-
-    for (i = 0; i < len; i++, p1++, p2++) {
-        if (*p1 < *p2)
-            return -1;
-        if (*p1 > *p2)
-            return 1;
-    }
-
-    return n;
-}
-
 /*
     https://bochs.sourceforge.io/techspec/PORTS.LST
 
@@ -348,4 +292,24 @@ void set_cursor(int position)
     outb(0x03d5, position >> 8);
     outb(0x03d4, 0x0f);
     outb(0x03d5, position & 0xff);
+}
+
+int printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(print_buffer, sizeof(print_buffer), fmt, ap);
+    va_end(ap);
+    return 0;
+}
+
+void console_init(void)
+{
+    int pos;
+
+    // 80 columns x 25 lines
+    pos = read_cursor();
+    cursor_line = pos / COLUMN_MAX;
+    cursor_column = pos % COLUMN_MAX;
+    incline();
 }

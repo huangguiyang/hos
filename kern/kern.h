@@ -1,51 +1,25 @@
-// using gcc bulitins
-#define va_list __builtin_va_list
-#define va_start __builtin_va_start
-#define va_end __builtin_va_end
-#define va_arg __builtin_va_arg
+// typedefs
+typedef unsigned char   uchar;
+typedef unsigned short  ushort;
+typedef unsigned int    uint;
+typedef unsigned long   ulong;
 
-#define NULL ((void *)0)
+// using gcc bulitins
+#define va_list     __builtin_va_list
+#define va_start    __builtin_va_start
+#define va_end      __builtin_va_end
+#define va_arg      __builtin_va_arg
+
+#define NULL        ((void *)0)
 #define MIN(a, b)   ((a) <= (b) ? (a) : (b))
 #define MAX(a, b)   ((a) >= (b) ? (a) : (b))
 #define NELMS(a)    (sizeof(a)/sizeof((a)[0]))
-
-extern void sti(void);
-extern void hlt(void);
-extern void pause(void);
-extern int read_cursor(void);
-extern void set_cursor(int position);
-
-// I/O PORTS
-extern void inb(int port, int *byte);
-extern void inw(int port, int *word);
-extern void indw(int port, int *dword);
-extern void outb(int port, int byte);
-extern void outw(int port, int word);
-extern void outdw(int port, int dword);
-
-struct cpuinfo {
-    int eax,ebx,ecx,edx;
-};
-extern void cpuid(struct cpuinfo *info);
-
-extern void tty_init(void);
-extern int printf(const char *fmt, ...);
-extern int vsnprintf(char *str, int size, const char *fmt, va_list ap);
-extern int puts(char *str);
-extern int putc(int c);
-extern void *memset(void *p, int c, unsigned long len);
-extern void *memcpy(void *dst, void *src, unsigned long len);
-extern int memcmp(void *a, void *b, unsigned long len);
 
 // IPI destination shorthand
 #define NO_SHORTHAND        0
 #define SELF                1
 #define ALL_INCLUDING_SELF  2
 #define ALL_EXCLUDING_SELF  3
-
-extern void rdmsr(int addr, int *low, int *high);
-extern void wrmsr(int addr, int low, int high);
-extern void set_cr3(void *addr);
 
 #define IA32_MTRRCAP                0xfe
 #define IA32_MTRR_DEF_TYPE          0x2ff
@@ -84,13 +58,23 @@ extern void set_cr3(void *addr);
 
 #define IA32_APIC_BASE              0x1b
 
+struct lapic {
+    uchar acpi_procssor_id;
+    uchar apic_id;
+    uint flags;
+};
+
+struct cpuid {
+    int eax,ebx,ecx,edx;
+};
+
 // RSDP (Root System Description Pointer) structure
 struct rsdp {
     char signature[8];              // "RSD PTR "
-    unsigned char checksum;
+    uchar checksum;
     char oem_id[6];
-    unsigned char revision;
-    unsigned int rsdt_addr;         // 32-bit physical address
+    uchar revision;
+    uint rsdt_addr;         // 32-bit physical address
 
     // version 2
     int length;
@@ -102,26 +86,26 @@ struct rsdp {
 // RSDT (Root System Description Table) structure
 struct acpi_sdt_hdr {
     char signature[4];
-    unsigned int length;
-    unsigned char revision;
-    unsigned char checksum;
+    uint length;
+    uchar revision;
+    uchar checksum;
     char oem_id[6];
     char oem_table_id[8];
-    unsigned int oem_revision;
-    unsigned int creator_id;
-    unsigned int creator_revision;
+    uint oem_revision;
+    uint creator_id;
+    uint creator_revision;
 };
 
 // MADT (Multiple APIC Description Table)
 struct madt_hdr {
     struct acpi_sdt_hdr hdr;
-    unsigned int local_apic_addr;
-    unsigned int flags;
+    uint local_apic_addr;
+    uint flags;
 };
 
 struct madt_entry_hdr {
-    unsigned char type;
-    unsigned char length;
+    uchar type;
+    uchar length;
 };
 
 #define SIG_MAGIC(a,b,c,d)  ((d << 24 ) | (c << 16) | (b << 8) | a)
@@ -173,12 +157,6 @@ struct madt_entry_hdr {
 #define ICR_ALL_INCLUDING_SELF  (2 << 18)
 #define ICR_ALL_EXCLUDING_SELF  (3 << 18)
 
-struct cpu {
-    unsigned char acpi_procssor_id;
-    unsigned char apic_id;
-    unsigned int flags;
-};
-
 // 4k paging flags
 #define PAGING_P        (1 << 0)
 #define PAGING_W        (1 << 1)
@@ -189,3 +167,59 @@ struct cpu {
 #define PAGING_DIRTY    (1 << 6)
 #define PAGING_PAT      (1 << 7)
 #define PAGING_GLOBAL   (1 << 8)
+
+// 4K aligned entry
+#define AP_STARTUP_IP   0xF000      // loader start address
+#define PAGE_DIR_ROOT   0xA000      // 40K
+#define DIRTY_MAP_ADDR  0x30000     // 192K
+#define DIRTY_MAP_SIZE  0x20000     // 128K
+#define MAX_LAPIC       32
+
+extern void sti(void);
+extern void cli(void);
+extern void halt(void);
+extern void pause(void);
+extern int read_cursor(void);
+extern void set_cursor(int position);
+
+// I/O PORTS
+extern void inb(int port, int *byte);
+extern void inw(int port, int *word);
+extern void indw(int port, int *dword);
+extern void outb(int port, int byte);
+extern void outw(int port, int word);
+extern void outdw(int port, int dword);
+
+extern void rdmsr(int addr, int *low, int *high);
+extern void wrmsr(int addr, int low, int high);
+extern void cpuid(struct cpuid *info);
+
+extern void ls_cpu(void);
+extern void ls_mtrr(void);
+extern void ls_topology(void);
+extern void spin_wait(int ms);
+
+extern void console_init(void);
+extern int printf(const char *fmt, ...);
+extern int vsnprintf(char *str, int size, const char *fmt, va_list ap);
+extern int puts(char *str);
+extern int putc(int c);
+
+extern void *memset(void *p, int c, unsigned long len);
+extern void *memcpy(void *dst, void *src, unsigned long len);
+extern int memcmp(void *a, void *b, unsigned long len);
+extern void mmap(void *p, int flags);
+extern void mm_init(void);
+
+extern void apic_init(void);
+extern int is_bsp(void);
+extern void enable_apic(void);
+extern void disable_apic(void);
+extern void *get_lapic_base_addr(void);
+extern int read_lapic_reg(void *base, int offset);
+extern void write_lapic_reg(void *base, int offset, int value);
+extern int get_lapic_id(void *base);
+extern struct lapic g_lapic[MAX_LAPIC];
+extern uint g_lapic_num;
+
+extern void smp_init(void);
