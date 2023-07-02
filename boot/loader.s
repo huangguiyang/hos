@@ -22,6 +22,7 @@ loader_ap16:
     # 每个AP都需要不同的栈，因此这里先不使用栈，推到后面
 
     cli
+    cld
     lidt idt_desc32
     lgdt gdt_desc32
 
@@ -42,6 +43,7 @@ loader_bsp16:
     call load_kern              # load kernel
 
     cli                         # fix VMWare
+    cld
     lidt idt_desc32             # load IDT
     lgdt gdt_desc32             # load GDT
 

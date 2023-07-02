@@ -1,11 +1,5 @@
 #include "kern.h"
 
-#define INT_MIN 0x80000000
-#define INT_MAX 0x7FFFFFFF
-
-#define LONG_MIN 0x8000000000000000
-#define LONG_MAX 0x7FFFFFFFFFFFFFFF
-
 #define LINE_MAX    25
 #define COLUMN_MAX  80
 #define PAGE_MAX    8

@@ -4,6 +4,18 @@ typedef unsigned short  ushort;
 typedef unsigned int    uint;
 typedef unsigned long   ulong;
 
+#define INT_MIN 0x80000000
+#define INT_MAX 0x7FFFFFFF
+
+#define UINT_MIN 0
+#define UINT_MAX 0xFFFFFFFF
+
+#define LONG_MIN 0x8000000000000000
+#define LONG_MAX 0x7FFFFFFFFFFFFFFF
+
+#define ULONG_MIN 0
+#define ULONG_MAX 0xFFFFFFFFFFFFFFFF
+
 // using gcc bulitins
 #define va_list     __builtin_va_list
 #define va_start    __builtin_va_start
@@ -14,12 +26,6 @@ typedef unsigned long   ulong;
 #define MIN(a, b)   ((a) <= (b) ? (a) : (b))
 #define MAX(a, b)   ((a) >= (b) ? (a) : (b))
 #define NELMS(a)    (sizeof(a)/sizeof((a)[0]))
-
-// IPI destination shorthand
-#define NO_SHORTHAND        0
-#define SELF                1
-#define ALL_INCLUDING_SELF  2
-#define ALL_EXCLUDING_SELF  3
 
 #define IA32_MTRRCAP                0xfe
 #define IA32_MTRR_DEF_TYPE          0x2ff
@@ -55,8 +61,6 @@ typedef unsigned long   ulong;
 #define IA32_MTRR_PHYSMASK8         0x211
 #define IA32_MTRR_PHYSBASE9         0x212
 #define IA32_MTRR_PHYSMASK9         0x213
-
-#define IA32_APIC_BASE              0x1b
 
 struct lapic {
     uchar acpi_procssor_id;
@@ -108,8 +112,17 @@ struct madt_entry_hdr {
     uchar length;
 };
 
+// APIC MSR
+#define IA32_APIC_BASE              0x1b
+
 #define SIG_MAGIC(a,b,c,d)  ((d << 24 ) | (c << 16) | (b << 8) | a)
 #define APIC_MAGIC  SIG_MAGIC('A','P','I','C')
+
+// IPI destination shorthand
+#define NO_SHORTHAND        0
+#define SELF                1
+#define ALL_INCLUDING_SELF  2
+#define ALL_EXCLUDING_SELF  3
 
 /*
 所有逻辑处理器的默认 LOCAL APIC 地址都是一样的 (0xFEE00000)
@@ -168,7 +181,7 @@ struct madt_entry_hdr {
 #define PAGING_PAT      (1 << 7)
 #define PAGING_GLOBAL   (1 << 8)
 
-// 4K aligned entry
+// kernel magic
 #define AP_STARTUP_IP   0xF000      // loader start address
 #define PAGE_DIR_ROOT   0xA000      // 40K
 #define DIRTY_MAP_ADDR  0x30000     // 192K

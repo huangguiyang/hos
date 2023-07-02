@@ -46,8 +46,12 @@ void smp_init(void)
     void *base = get_lapic_base_addr();
     int self = get_lapic_id(base);
 
-    for (int i = 0; i < g_lapic_num; i++) {
+    for (int i = 0; i < g_lapic_num; i++)
         if (g_lapic[i].apic_id != self)
             wakeup(base, g_lapic[i].apic_id);
-    }
+    
+    while (g_lapic_ative_num != g_lapic_num)
+        ;/* wait */
+
+    printf("Done.\n");
 }

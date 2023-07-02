@@ -85,6 +85,7 @@ int ap_main()
     // local_apic_ver = read_lapic_reg(p, LAPIC_VERSION_REG);
     // printf("*Current APIC ID=%d, ver=0x%x\n", local_apic_id, local_apic_ver);
 
+    // TODO: lock
     g_lapic_ative_num++;
 
     for (;;) pause();
