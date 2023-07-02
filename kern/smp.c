@@ -34,7 +34,6 @@ static void wakeup(void *lapic_base, int apic_id)
     send_startup_ipi_to_apic(lapic_base, apic_id, AP_STARTUP_IP >> 12);
     while (read_lapic_reg(lapic_base, LAPIC_ICR_LOW32) & ICR_PENDING)
         ;/* wait */
-    delay_ms(200);
 }
 
 void smp_init(void)
