@@ -25,5 +25,3 @@ qemu-system-x86_64 -m 256 -fda floppy.img --smp cores=4,threads=2
 ## License
 
 GPL.
-
-Author: [guiyang.huang](mailto:guiyang.huang@gmail.com)
